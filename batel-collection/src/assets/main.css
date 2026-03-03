@@ -1,0 +1,103 @@
+:root {
+  --color-primary: #504143;
+  --color-primary-light: #6a5759;
+  --color-bg: #ffffff;
+  --color-text: #333333;
+  --color-border: #e2e8f0;
+  --color-error: #dc2626;
+  --color-success: #16a34a;
+}
+
+/* Reset and base styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  font-size: 16px;
+}
+
+/* Accessibility: Focus styles */
+:focus-visible {
+  outline: 3px dashed var(--color-primary);
+  outline-offset: 4px;
+}
+
+/* Screen reader only utility (Auditory impairment support) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Global Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover,
+a:focus {
+  text-decoration: underline;
+}
+
+/* Buttons and Inputs */
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.75rem;
+  font-size: 1rem;
+  width: 100%;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}

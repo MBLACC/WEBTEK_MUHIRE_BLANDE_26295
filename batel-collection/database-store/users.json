@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "username": "batelcollection@gmail.com",
+    "password": "Roxan@123",
+    "isAdmin": true,
+    "email": "batelcollection@gmail.com",
+    "firstName": "Admin",
+    "lastName": "Admin"
+  },
+  {
+    "id": 2,
+    "username": "client",
+    "password": "123",
+    "isAdmin": false,
+    "email": "client@example.com",
+    "firstName": "Client",
+    "lastName": "User"
+  },
+  {
+    "id": 1772216537974,
+    "username": "muhirebrian388@gmail.com",
+    "email": "muhirebrian388@gmail.com",
+    "password": "Brian@123",
+    "firstName": "BRIAN",
+    "lastName": "MUHIRE",
+    "whatsappPhone": "0788480209",
+    "isAdmin": false
+  }
+]

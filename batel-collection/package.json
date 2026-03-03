@@ -1,38 +1,26 @@
 {
   "name": "batel-collection",
-  "version": "0.0.0",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "run-s lint:*",
-    "lint:oxlint": "oxlint . --fix",
-    "lint:eslint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "server": "node server.js",
+    "start": "start cmd /k npm run server && npm run dev"
   },
   "dependencies": {
-    "pinia": "^3.0.4",
-    "vue": "^3.5.29",
-    "vue-router": "^5.0.3"
+    "axios": "^1.6.8",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "lucide-vue-next": "^0.368.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@vitejs/plugin-vue": "^6.0.4",
-    "@vitejs/plugin-vue-jsx": "^5.1.4",
-    "eslint": "^10.0.2",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-oxlint": "~1.50.0",
-    "eslint-plugin-vue": "~10.8.0",
-    "globals": "^17.3.0",
-    "npm-run-all2": "^8.0.4",
-    "oxlint": "~1.50.0",
-    "prettier": "3.8.1",
-    "vite": "^7.3.1",
-    "vite-plugin-vue-devtools": "^8.0.6"
-  },
-  "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^7.3.1"
   }
 }
