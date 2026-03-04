@@ -114,7 +114,6 @@ const resetProductForm = () => {
 }
 
 const saveProduct = async () => {
-  // If images array has items, make the first one the main `image` for compatibility, while preserving `images`.
   const payload = {
     ...productForm.value,
     size: [...productForm.value.size],
@@ -124,8 +123,13 @@ const saveProduct = async () => {
     image: productForm.value.images.length ? productForm.value.images[0] : productForm.value.image
   }
   
-  if (editingProductId.value) await productStore.updateProduct(editingProductId.value, payload)
-  else await productStore.addProduct(payload)
+  if (editingProductId.value) {
+    await productStore.updateProduct(editingProductId.value, payload)
+    showNotification('Product updated successfully!')
+  } else {
+    await productStore.addProduct(payload)
+    showNotification('Product added successfully!')
+  }
   resetProductForm()
 }
 
@@ -144,9 +148,10 @@ const addCategory = async () => {
   if(!current[newCatName.value]) {
     current[newCatName.value] = []
     await productStore.updateCategories(current)
+    showNotification(`Category "${newCatName.value}" added successfully!`)
     newCatName.value = ''
   } else {
-    alert("Category already exists!")
+    showNotification("Category already exists!", "error")
   }
 }
 
@@ -156,9 +161,10 @@ const addSubcategory = async () => {
   if (!current[selectedParentForSub.value].includes(newSubName.value)) {
     current[selectedParentForSub.value].push(newSubName.value)
     await productStore.updateCategories(current)
+    showNotification(`Subcategory "${newSubName.value}" added successfully!`)
     newSubName.value = ''
   } else {
-    alert("Subcategory already exists!")
+    showNotification("Subcategory already exists!", "error")
   }
 }
 
@@ -225,12 +231,24 @@ const saveHero = async () => {
   await productStore.updateHero(heroForm.value)
   alert('Hero updated')
 }
+// --- Notifications ---
+const notification = ref({ show: false, message: '', type: 'success' })
+const showNotification = (msg, type = 'success') => {
+  notification.value = { show: true, message: msg, type }
+  setTimeout(() => notification.value.show = false, 3000)
+}
 </script>
 
 <template>
+  <div v-if="notification.show" class="notification-toast" :class="notification.type" role="alert">
+    {{ notification.message }}
+  </div>
   <div class="admin-page container section-spacing">
     <div class="admin-header">
-      <h1 class="page-title">Admin Dashboard</h1>
+      <div class="admin-brand">
+        <img src="@/assets/logo_image/LOGO.png" alt="Logo" class="admin-logo" />
+        <h1 class="page-title">Admin Dashboard</h1>
+      </div>
       <AccessibleButton label="Exit Admin" variant="secondary" @click="router.push('/')" />
     </div>
 
@@ -283,8 +301,15 @@ const saveHero = async () => {
           <div class="panel">
             <h2>Sold Out Products</h2>
             <ul class="simple-list">
-               <li v-for="product in soldOutProducts" :key="product.id">
-                 {{ product.name }} <small>(ID: {{ product.id }})</small>
+               <li v-for="product in soldOutProducts" :key="product.id" style="display: flex; gap: 1rem; align-items: center; justify-content: space-between;">
+                 <div style="display: flex; gap: 1rem; align-items: center; flex: 1;">
+                   <img :src="product.images?.length ? product.images[0] : product.image" class="thumb" alt="" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" />
+                   <div>
+                     <strong>{{ product.name }}</strong> <br>
+                     <small>{{ product.category }} - {{ product.subcategory }}</small>
+                   </div>
+                 </div>
+                 <button class="action-btn text-primary" @click="activeTab = 'Products'; editProduct(product)">Restock/Edit</button>
                </li>
                <li v-if="soldOutProducts.length === 0">All products in stock!</li>
             </ul>
@@ -322,6 +347,11 @@ const saveHero = async () => {
                 </select>
             </div>
 
+            <div class="input-group" style="grid-column: 1 / -1;">
+              <label for="p-desc">Product Description</label>
+              <textarea id="p-desc" v-model="productForm.description" rows="3" class="custom-select" placeholder="Enter product description here..." required></textarea>
+            </div>
+
             <!-- Image Multiple Upload logic -->
             <div class="input-group" style="grid-column: 1 / -1;">
               <label>Images (URL or File Upload)</label>
@@ -341,32 +371,28 @@ const saveHero = async () => {
             
             <div class="input-group">
               <label>Sizes</label>
-              <select multiple v-model="productForm.size" class="custom-select" style="min-height: 100px;">
-                <option v-for="s in availableSizes" :key="s" :value="s">{{ s }}</option>
-              </select>
-              <small style="color: #666; font-size: 0.8rem;">Hold Ctrl (or Cmd on Mac) to select multiple</small>
+              <div class="checkbox-grid">
+                <label v-for="s in availableSizes" :key="s" class="checkbox-label" style="font-weight: normal;">
+                  <input type="checkbox" :value="s" v-model="productForm.size" /> {{ s }}
+                </label>
+              </div>
             </div>
 
-            <div class="input-group">
+            <div class="input-group" style="grid-column: 1 / -1;">
               <label>Colors</label>
-              <div style="display: flex; gap: 0.5rem; align-items: stretch;">
-                <input 
-                  list="common-colors" 
-                  v-model="colorSearch" 
-                  class="custom-select" 
-                  placeholder="Search or type a color..."
-                  @keyup.enter="addColor"
-                  style="flex: 1;"
-                />
-                <datalist id="common-colors">
-                  <option v-for="c in commonColors" :key="c" :value="c" />
-                </datalist>
-                <button type="button" class="action-btn text-primary" @click="addColor" style="background: var(--color-bg); padding: 0 1rem; border-radius: 4px;">Add</button>
+              <div class="checkbox-grid">
+                <label v-for="c in commonColors" :key="c" class="checkbox-label" style="font-weight: normal; margin-right: 0.5rem;">
+                  <input type="checkbox" :value="c" v-model="productForm.color" /> {{ c }}
+                </label>
               </div>
-              <div class="color-tags" v-if="productForm.color.length" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
-                <span v-for="(c, idx) in productForm.color" :key="idx" style="background: var(--color-border); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; max-width: 400px;">
+                <input v-model="colorSearch" class="custom-select" placeholder="Add custom color..." @keyup.enter="addColor" style="flex: 1;" />
+                <button type="button" class="action-btn text-primary" @click="addColor" style="background: var(--color-border); padding: 0 1rem; border-radius: 4px;">Add Custom</button>
+              </div>
+              <div class="color-tags" v-if="productForm.color.filter(c => !commonColors.includes(c)).length" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                <span v-for="c in productForm.color.filter(c => !commonColors.includes(c))" :key="c" style="background: var(--color-border); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
                   {{ c }}
-                  <button type="button" @click="removeColor(idx)" aria-label="Remove color" title="Remove color" style="background: none; border: none; cursor: pointer; color: var(--color-error); font-weight: bold;">&times;</button>
+                  <button type="button" @click="removeColor(productForm.color.indexOf(c))" style="background: none; border: none; cursor: pointer; color: var(--color-error); font-weight: bold;">&times;</button>
                 </span>
               </div>
             </div>
@@ -581,11 +607,42 @@ const saveHero = async () => {
 </template>
 
 <style scoped>
+.notification-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  z-index: 9999;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  animation: slideIn 0.3s ease-out;
+}
+.notification-toast.success { background-color: #10b981; }
+.notification-toast.error { background-color: #ef4444; }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
 .admin-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
 }
 
 .page-title {
@@ -730,6 +787,18 @@ const saveHero = async () => {
     border-radius: 8px;
     font-size: 1rem;
     background-color: white;
+    font-family: inherit;
+}
+
+.checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: white;
+  min-height: 50px;
 }
 
 .image-previews {

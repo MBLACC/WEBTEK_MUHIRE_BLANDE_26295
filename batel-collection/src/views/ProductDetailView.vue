@@ -30,14 +30,23 @@ onMounted(async () => {
 
 const isOutOfStock = computed(() => !product.value || product.value.stock <= 0)
 
+const notification = ref({ show: false, message: '', type: 'success' })
+const showNotification = (msg, type = 'success') => {
+  notification.value = { show: true, message: msg, type }
+  setTimeout(() => notification.value.show = false, 3000)
+}
+
 const addToCart = () => {
   if (!product.value || isOutOfStock.value) return
   cartStore.addToCart(product.value, selectedSize.value, selectedColor.value, quantity.value)
-  router.push('/cart')
+  showNotification('Product added to cart successfully!')
 }
 </script>
 
 <template>
+  <div v-if="notification.show" class="notification-toast" :class="notification.type" role="alert">
+    {{ notification.message }}
+  </div>
   <div v-if="product" class="container section-spacing product-detail">
     <div class="product-gallery">
       <div class="main-image">
@@ -122,6 +131,26 @@ const addToCart = () => {
 </template>
 
 <style scoped>
+.notification-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  z-index: 9999;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  animation: slideIn 0.3s ease-out;
+}
+.notification-toast.success { background-color: #10b981; }
+.notification-toast.error { background-color: #ef4444; }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 .product-detail {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -111,12 +111,12 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <AccessibleInput id="password" v-model="form.password" label="Password" type="password" required />
+        <AccessibleInput id="password" v-model="form.password" label="Password" type="password" placeholder="......." required />
         <div v-if="form.password" class="strength-meter" :style="{ color: passwordStrength === 'yellow' ? '#d97706' : passwordStrength }">
           Password Strength: {{ strengthLabel }}
         </div>
 
-        <AccessibleInput id="confirm" v-model="form.confirm" label="Confirm Password" type="password" :error="confirmError" :success="isPasswordMatch" required />
+        <AccessibleInput id="confirm" v-model="form.confirm" label="Confirm Password" type="password" placeholder="......." :error="confirmError" :success="isPasswordMatch" required />
 
         <div v-if="errorMsg" class="error-alert" role="alert">
           {{ errorMsg }}

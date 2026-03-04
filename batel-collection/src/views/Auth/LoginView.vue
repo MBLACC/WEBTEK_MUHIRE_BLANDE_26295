@@ -83,6 +83,7 @@ const handleLogin = async () => {
           label="Password" 
           type="password" 
           v-model="password" 
+          placeholder="......."
           required 
         />
         <div v-if="password" class="strength-meter" :style="{ color: passwordStrength === 'yellow' ? '#d97706' : passwordStrength }">

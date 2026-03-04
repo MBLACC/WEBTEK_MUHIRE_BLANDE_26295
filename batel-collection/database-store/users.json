@@ -26,5 +26,15 @@
     "lastName": "MUHIRE",
     "whatsappPhone": "0788480209",
     "isAdmin": false
+  },
+  {
+    "id": 1772573692989,
+    "username": "blaccm@yahoo.com",
+    "email": "blaccm@yahoo.com",
+    "password": "Admin@123",
+    "firstName": "blacc",
+    "lastName": "m",
+    "whatsappPhone": "0788480209",
+    "isAdmin": false
   }
 ]

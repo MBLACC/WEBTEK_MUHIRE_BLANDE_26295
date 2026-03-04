@@ -33,6 +33,7 @@ const toggleMenu = () => {
     <div class="container navbar-inner">
       <div class="nav-brand">
         <RouterLink to="/" class="brand-link" aria-label="BatelCollection Home">
+          <img src="@/assets/logo_image/LOGO.png" alt="Logo" class="brand-logo" />
           BatelCollection
         </RouterLink>
       </div>
@@ -95,6 +96,15 @@ const toggleMenu = () => {
   font-weight: 700;
   color: var(--color-primary);
   text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
 }
 
 .nav-links {
