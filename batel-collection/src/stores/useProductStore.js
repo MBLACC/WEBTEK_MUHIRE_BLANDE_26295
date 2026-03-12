@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
+import axios from 'axios'
 import { ref } from 'vue'
-import { storageService } from '../services/storageService'
+
+const API_URL = 'http://localhost:3001/api'
 
 export const useProductStore = defineStore('products', () => {
   const products = ref([])
@@ -9,67 +11,71 @@ export const useProductStore = defineStore('products', () => {
   const newArrivals = ref([])
 
   const fetchProducts = async () => {
-    products.value = storageService.getAll('products')
+    const res = await axios.get(`${API_URL}/products`)
+    products.value = res.data
   }
   
   const fetchHero = async () => {
-    heroContent.value = storageService.get('hero') || {}
+    const res = await axios.get(`${API_URL}/hero`)
+    heroContent.value = res.data
   }
 
   const fetchCategories = async () => {
-    categories.value = storageService.get('categories') || {}
+    try {
+      const res = await axios.get(`${API_URL}/categories`)
+      categories.value = res.data
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const fetchNewArrivals = async () => {
-    newArrivals.value = storageService.getAll('new_arrivals')
+    try {
+      const res = await axios.get(`${API_URL}/newArrivals`)
+      newArrivals.value = res.data
+    } catch(e) { console.error(e) }
   }
 
   const getProductById = (id) => products.value.find(p => p.id === Number(id))
 
   const addProduct = async (product) => {
-    const newItem = storageService.add('products', product)
-    products.value.push(newItem)
+    const res = await axios.post(`${API_URL}/products`, product)
+    products.value.push(res.data)
   }
 
   const updateProduct = async (id, product) => {
-    const updated = storageService.update('products', id, product)
-    if (updated) {
-      const index = products.value.findIndex(p => p.id === Number(id))
-      if (index !== -1) products.value[index] = updated
-    }
+    const res = await axios.put(`${API_URL}/products/${id}`, product)
+    const index = products.value.findIndex(p => p.id === Number(id))
+    if (index !== -1) products.value[index] = res.data
   }
 
   const deleteProduct = async (id) => {
-    storageService.delete('products', id)
+    await axios.delete(`${API_URL}/products/${id}`)
     products.value = products.value.filter(p => p.id !== Number(id))
   }
-
   const updateHero = async (content) => {
-    const updated = storageService.save('hero', content)
-    heroContent.value = updated
+    const res = await axios.put(`${API_URL}/single/hero`, content)
+    heroContent.value = res.data
   }
 
   const updateCategories = async (newCats) => {
-    const updated = storageService.save('categories', newCats)
-    categories.value = updated
+    const res = await axios.put(`${API_URL}/single/categories`, newCats)
+    categories.value = res.data
   }
 
   const addNewArrival = async (item) => {
-    const newItem = storageService.add('new_arrivals', item)
-    newArrivals.value.push(newItem)
+    const res = await axios.post(`${API_URL}/newArrivals`, item)
+    newArrivals.value.push(res.data)
   }
-
   const deleteNewArrival = async (id) => {
-    storageService.delete('new_arrivals', id)
-    newArrivals.value = newArrivals.value.filter(p => Number(p.id) !== Number(id))
+    await axios.delete(`${API_URL}/newArrivals/${id}`)
+    newArrivals.value = newArrivals.value.filter(p => p.id !== Number(id))
   }
 
   const updateNewArrival = async (id, item) => {
-    const updated = storageService.update('new_arrivals', id, item)
-    if (updated) {
-      const index = newArrivals.value.findIndex(a => Number(a.id) === Number(id))
-      if (index !== -1) newArrivals.value[index] = updated
-    }
+    const res = await axios.put(`${API_URL}/newArrivals/${id}`, item)
+    const index = newArrivals.value.findIndex(a => a.id === Number(id))
+    if (index !== -1) newArrivals.value[index] = res.data
   }
 
   return { 

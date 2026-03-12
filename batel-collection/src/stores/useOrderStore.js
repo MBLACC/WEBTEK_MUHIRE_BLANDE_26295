@@ -1,56 +1,41 @@
 import { defineStore } from 'pinia'
+import axios from 'axios'
 import { ref } from 'vue'
-import { storageService } from '../services/storageService'
+
+const API_URL = 'http://localhost:3001/api'
 
 export const useOrderStore = defineStore('orders', () => {
   const orders = ref([])
 
   const fetchOrders = async () => {
-    orders.value = storageService.getAll('orders')
+    const res = await axios.get(`${API_URL}/orders`)
+    orders.value = res.data
   }
 
   const createOrder = async (orderData) => {
-    // 1. Reduce stock for each item in the order
-    const products = storageService.getAll('products');
-    const orderItems = orderData.items || [];
-    
-    orderItems.forEach(item => {
-      const productIndex = products.findIndex(p => p.id === Number(item.product.id));
-      if (productIndex !== -1) {
-        const product = products[productIndex];
-        product.stock = Math.max(0, product.stock - (item.quantity || 1));
-        
-        if (product.stock <= 0) {
-          product.inStore = false;
-        }
-      }
-    });
-
-    // 2. Save updated products
-    storageService.save('products', products);
-
-    // 3. Create the order
-    const newOrder = storageService.add('orders', { 
-      ...orderData, 
-      status: 'pending', 
-      date: new Date().toISOString() 
-    });
-
-    orders.value.push(newOrder);
-    return newOrder;
+    const res = await axios.post(`${API_URL}/orders`, { ...orderData, status: 'pending', date: new Date().toISOString() })
+    orders.value.push(res.data)
+    return res.data
   }
 
   const updateOrderStatus = async (id, status) => {
-    const updatedOrder = storageService.update('orders', id, { status });
-    if (updatedOrder) {
-      const index = orders.value.findIndex(o => o.id === Number(id));
-      if (index !== -1) orders.value[index] = updatedOrder;
+    const order = orders.value.find(o => o.id === Number(id))
+    if (order) {
+        order.status = status
+        await axios.put(`${API_URL}/orders/${id}`, order)
     }
   }
-
   const cancelOrder = async (id) => {
-    storageService.delete('orders', id);
-    orders.value = orders.value.filter(o => String(o.id) !== String(id));
+    try {
+      console.log('Cancelling order:', id, 'Type:', typeof id);
+      await axios.delete(`${API_URL}/orders/${id}`);
+      // Use string comparison to be safe with large IDs or mixed types
+      orders.value = orders.value.filter(o => String(o.id) !== String(id));
+      console.log('Order removed from local state');
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+      throw error;
+    }
   }
 
   return { orders, fetchOrders, createOrder, updateOrderStatus, cancelOrder }
