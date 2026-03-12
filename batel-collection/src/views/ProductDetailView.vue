@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/useProductStore'
 import { useCartStore } from '@/stores/useCartStore'
 import AccessibleButton from '@/components/AccessibleButton.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,16 +17,24 @@ const selectedColor = ref('')
 const quantity = ref(1)
 const activeImageIndex = ref(0)
 
-onMounted(async () => {
+const loadProduct = async () => {
   if (productStore.products.length === 0) {
     await productStore.fetchProducts()
   }
   product.value = productStore.getProductById(route.params.id)
   
   if (product.value) {
-    if (product.value.size?.length) selectedSize.value = product.value.size[0]
-    if (product.value.color?.length) selectedColor.value = product.value.color[0]
+    selectedSize.value = product.value.size?.length ? product.value.size[0] : ''
+    selectedColor.value = product.value.color?.length ? product.value.color[0] : ''
+    quantity.value = 1
+    activeImageIndex.value = 0
   }
+}
+
+onMounted(loadProduct)
+
+watch(() => route.params.id, (newId) => {
+  if (newId) loadProduct()
 })
 
 const isOutOfStock = computed(() => !product.value || product.value.stock <= 0)
@@ -36,11 +45,27 @@ const showNotification = (msg, type = 'success') => {
   setTimeout(() => notification.value.show = false, 3000)
 }
 
-const addToCart = () => {
-  if (!product.value || isOutOfStock.value) return
-  cartStore.addToCart(product.value, selectedSize.value, selectedColor.value, quantity.value)
-  showNotification('Product added to cart successfully!')
+const addToCart = (isPreorder = false) => {
+  if (!product.value) return
+  const s = selectedSize.value || (product.value.size?.length ? null : 'N/A')
+  const c = selectedColor.value || (product.value.color?.length ? null : 'N/A')
+
+  cartStore.addToCart(product.value, s, c, quantity.value)
+  if (isPreorder || isOutOfStock.value) {
+    showNotification('Added to cart as Pre-order (50% deposit required at checkout)')
+  } else {
+    showNotification('Product added to cart successfully!')
+  }
 }
+
+// Related Products
+const suggestedProducts = computed(() => {
+  if (!product.value) return []
+  return productStore.products
+    .filter(p => p.category === product.value.category && p.id !== product.value.id)
+    .sort(() => 0.5 - Math.random()) // Randomize
+    .slice(0, 4) // Show 4 items max
+})
 </script>
 
 <template>
@@ -106,27 +131,58 @@ const addToCart = () => {
 
       <div class="actions">
         <p class="stock-status" :class="{ out: isOutOfStock }">
-          {{ isOutOfStock ? 'Out of Stock' : `${product.stock} in stock` }}
+          {{ isOutOfStock ? 'Out of Stock — Available for Pre-order' : `${product.stock} in stock` }}
         </p>
 
-        <div class="quantity-add" v-if="!isOutOfStock">
+        <div class="quantity-add">
           <div class="quantity-control">
             <button @click="quantity > 1 ? quantity-- : null" aria-label="Decrease quantity" class="qty-btn">-</button>
             <span class="qty" aria-live="polite">{{ quantity }}</span>
-            <button @click="quantity < product.stock ? quantity++ : null" aria-label="Increase quantity" class="qty-btn">+</button>
+            <button @click="(!product.inStore || quantity < product.stock) ? quantity++ : null" aria-label="Increase quantity" class="qty-btn" :disabled="product.inStore && quantity >= product.stock">+</button>
           </div>
           <AccessibleButton 
+            v-if="!isOutOfStock"
             class="add-btn" 
             label="Add to Cart" 
-            @click="addToCart" 
-            :disabled="isOutOfStock || !selectedSize || !selectedColor"
+            @click="addToCart(false)" 
+            :disabled="(product.size?.length && !selectedSize) || (product.color?.length && !selectedColor)"
+          />
+          <AccessibleButton 
+            v-else
+            class="add-btn" 
+            label="Pre-order (50% Deposit)" 
+            @click="addToCart(true)" 
+            :disabled="(product.size?.length && !selectedSize) || (product.color?.length && !selectedColor)"
+            style="background-color: #7c3aed;"
           />
         </div>
       </div>
     </div>
   </div>
-  <div v-else class="container section-spacing loading">
-    <p>Loading product details...</p>
+  <div v-if="product && suggestedProducts.length" class="container section-spacing related-section">
+    <h2 class="section-title">You Might Also Like</h2>
+    <div class="product-grid">
+      <article v-for="sProduct in suggestedProducts" :key="sProduct.id" class="product-card">
+        <RouterLink 
+          :to="`/product/${sProduct.id}`"
+          class="product-link"
+          :aria-label="`View details for ${sProduct.name}`"
+        >
+          <div class="img-wrapper">
+            <img :src="sProduct.image" :alt="sProduct.name" loading="lazy" />
+          </div>
+          <div class="s-product-info">
+            <h3>{{ sProduct.name }}</h3>
+            <p class="s-price">{{ sProduct.price.toLocaleString() }} RWF</p>
+            <span v-if="!sProduct.inStore" class="s-badge">Pre-order</span>
+          </div>
+        </RouterLink>
+      </article>
+    </div>
+  </div>
+  
+  <div v-if="!product" class="container section-spacing">
+    <LoadingSpinner message="Loading product details..." />
   </div>
 </template>
 
@@ -343,9 +399,93 @@ input:focus-visible + .option-box {
   flex: 1;
 }
 
+.preorder-btn {
+  background: #7c3aed !important;
+}
+
 .loading {
   text-align: center;
   font-size: 1.25rem;
   padding: 4rem 0;
+}
+
+/* Related Products Styles */
+.related-section {
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+  font-size: 1.75rem;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.product-card {
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-link {
+  color: var(--color-text);
+  text-decoration: none;
+  position: relative;
+  display: block;
+}
+
+.product-card:hover, .product-card:focus-within {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+}
+
+.img-wrapper {
+  aspect-ratio: 3/4;
+  overflow: hidden;
+}
+
+.img-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.product-card:hover .img-wrapper img, .product-card:focus-within .img-wrapper img {
+  transform: scale(1.05);
+}
+
+.s-product-info {
+  padding: 1rem;
+  text-align: center;
+}
+
+.s-product-info h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.s-price {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.s-badge {
+  display: inline-block;
+  background: var(--color-primary-light);
+  color: white;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
 }
 </style>

@@ -1,10 +1,10 @@
 {
   "Clothes": [
     "Dress",
-    "Shirt",
     "Pants",
     "Jacket",
-    "Suit"
+    "Suit",
+    "coat"
   ],
   "Shoes": [
     "Heels",
@@ -23,6 +23,7 @@
     "Tote",
     "Backpack",
     "Clutch",
-    "Crossbody"
+    "Crossbody",
+    "Duffle bag"
   ]
 }

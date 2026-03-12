@@ -17,13 +17,23 @@ if (!authStore.user?.isAdmin) {
 }
 
 const activeTab = ref('Dashboard')
-const tabs = ['Dashboard', 'Products', 'Categories', 'New Arrivals', 'Orders', 'Hero Content']
+const tabs = ['Dashboard', 'Products', 'Categories', 'New Arrivals', 'Orders']
+
+// --- New Order Notification ---
+const lastSeenOrderCount = ref(parseInt(localStorage.getItem('lastSeenOrderCount') || '0'))
+const newOrdersCount = computed(() => {
+  const total = orderStore.orders.length
+  return total > lastSeenOrderCount.value ? total - lastSeenOrderCount.value : 0
+})
+const markOrdersAsSeen = () => {
+  lastSeenOrderCount.value = orderStore.orders.length
+  localStorage.setItem('lastSeenOrderCount', String(orderStore.orders.length))
+}
 
 onMounted(async () => {
   await Promise.all([
     orderStore.fetchOrders(),
     productStore.fetchProducts(),
-    productStore.fetchHero(),
     productStore.fetchCategories(),
     productStore.fetchNewArrivals()
   ])
@@ -47,6 +57,29 @@ const recentOrders = computed(() => [...orderStore.orders].sort((a,b) => new Dat
 const showProductForm = ref(false)
 const editingProductId = ref(null)
 const productForm = ref({ name: '', category: '', subcategory: '', price: 0, description: '', size: [], color: [], stock: 0, image: '', images: [], inStore: true })
+
+const selectedCategoryView = ref(null)
+const selectedSubcategoryView = ref(null)
+
+const productExplorerData = computed(() => {
+  const data = {};
+  for (const [cat, subs] of Object.entries(productStore.categories || {})) {
+    data[cat] = {};
+    for (const sub of subs) {
+      data[cat][sub] = [];
+    }
+  }
+  
+  (productStore.products || []).forEach(p => {
+    if (!p.category) return;
+    if (!data[p.category]) data[p.category] = {};
+    const sub = p.subcategory || 'Uncategorized';
+    if (!data[p.category][sub]) data[p.category][sub] = [];
+    data[p.category][sub].push(p);
+  });
+  
+  return data;
+})
 
 const availableSubcategories = computed(() => {
   return productStore.categories[productForm.value.category] || []
@@ -144,12 +177,22 @@ const selectedParentForSub = ref('')
 
 const addCategory = async () => {
   if (!newCatName.value) return
-  const current = { ...productStore.categories }
+  const current = JSON.parse(JSON.stringify(productStore.categories))
   if(!current[newCatName.value]) {
     current[newCatName.value] = []
-    await productStore.updateCategories(current)
-    showNotification(`Category "${newCatName.value}" added successfully!`)
-    newCatName.value = ''
+    autoSaveStatus.value = 'saving'
+    try {
+      await productStore.updateCategories(current)
+      autoSaveStatus.value = 'saved'
+      showNotification(`Category "${newCatName.value}" added successfully!`)
+      newCatName.value = ''
+      setTimeout(() => { if (autoSaveStatus.value === 'saved') autoSaveStatus.value = '' }, 3000)
+    } catch (e) {
+      autoSaveStatus.value = 'error'
+      const errorMsg = e.response?.data?.details || e.response?.data?.error || e.message;
+      showNotification(`Failed to add category: ${errorMsg}`, "error")
+      console.error("Add category error:", e)
+    }
   } else {
     showNotification("Category already exists!", "error")
   }
@@ -157,12 +200,22 @@ const addCategory = async () => {
 
 const addSubcategory = async () => {
   if (!selectedParentForSub.value || !newSubName.value) return
-  const current = { ...productStore.categories }
+  const current = JSON.parse(JSON.stringify(productStore.categories))
   if (!current[selectedParentForSub.value].includes(newSubName.value)) {
     current[selectedParentForSub.value].push(newSubName.value)
-    await productStore.updateCategories(current)
-    showNotification(`Subcategory "${newSubName.value}" added successfully!`)
-    newSubName.value = ''
+    autoSaveStatus.value = 'saving'
+    try {
+      await productStore.updateCategories(current)
+      autoSaveStatus.value = 'saved'
+      showNotification(`Subcategory "${newSubName.value}" added successfully!`)
+      newSubName.value = ''
+      setTimeout(() => { if (autoSaveStatus.value === 'saved') autoSaveStatus.value = '' }, 3000)
+    } catch (e) {
+      autoSaveStatus.value = 'error'
+      const errorMsg = e.response?.data?.details || e.response?.data?.error || e.message;
+      showNotification(`Failed to add subcategory: ${errorMsg}`, "error")
+      console.error("Add subcategory error:", e)
+    }
   } else {
     showNotification("Subcategory already exists!", "error")
   }
@@ -170,22 +223,45 @@ const addSubcategory = async () => {
 
 const deleteCategory = async (cat) => {
   if (confirm(`Delete the entire category "${cat}" and all its subcategories?`)) {
-    const current = { ...productStore.categories }
+    const current = JSON.parse(JSON.stringify(productStore.categories))
     delete current[cat]
-    await productStore.updateCategories(current)
+    autoSaveStatus.value = 'saving'
+    try {
+      await productStore.updateCategories(current)
+      autoSaveStatus.value = 'saved'
+      showNotification(`Category "${cat}" deleted.`)
+      setTimeout(() => { if (autoSaveStatus.value === 'saved') autoSaveStatus.value = '' }, 3000)
+    } catch (e) {
+      autoSaveStatus.value = 'error'
+      const errorMsg = e.response?.data?.details || e.response?.data?.error || e.message;
+      showNotification(`Failed to delete category: ${errorMsg}`, "error")
+      console.error("Delete category error:", e)
+    }
   }
 }
 
 const deleteSubcategory = async (cat, sub) => {
   if (confirm(`Delete the subcategory "${sub}" from "${cat}"?`)) {
-    const current = { ...productStore.categories }
+    const current = JSON.parse(JSON.stringify(productStore.categories))
     current[cat] = current[cat].filter(s => s !== sub)
-    await productStore.updateCategories(current)
+    autoSaveStatus.value = 'saving'
+    try {
+      await productStore.updateCategories(current)
+      autoSaveStatus.value = 'saved'
+      showNotification(`Subcategory "${sub}" removed.`)
+      setTimeout(() => { if (autoSaveStatus.value === 'saved') autoSaveStatus.value = '' }, 3000)
+    } catch (e) {
+      autoSaveStatus.value = 'error'
+      const errorMsg = e.response?.data?.details || e.response?.data?.error || e.message;
+      showNotification(`Failed to update subcategories: ${errorMsg}`, "error")
+      console.error("Delete subcategory error:", e)
+    }
   }
 }
 
 // --- New Arrivals ---
 const showArrivalForm = ref(false)
+const editingArrivalId = ref(null)
 const arrivalForm = ref({ name: '', category: '', subcategory: '', image: '' })
 
 const availableArrivalSubcats = computed(() => productStore.categories[arrivalForm.value.category] || [])
@@ -201,36 +277,83 @@ const handleArrivalImage = async (e) => {
   if (file) arrivalForm.value.image = await fileToBase64(file)
 }
 
-const saveArrival = async () => {
-  await productStore.addNewArrival({ ...arrivalForm.value })
+const editArrival = (arr) => {
+  editingArrivalId.value = arr.id
+  arrivalForm.value = { ...arr }
+  showArrivalForm.value = true
+}
+
+const resetArrivalForm = () => {
+  editingArrivalId.value = null
   showArrivalForm.value = false
   arrivalForm.value = { name: '', category: '', subcategory: '', image: '' }
 }
 
+const saveArrival = async () => {
+  if (editingArrivalId.value) {
+    await productStore.updateNewArrival(editingArrivalId.value, { ...arrivalForm.value })
+    showNotification('New Arrival updated successfully!')
+  } else {
+    await productStore.addNewArrival({ ...arrivalForm.value })
+    showNotification('New Arrival added successfully!')
+  }
+  resetArrivalForm()
+}
+
 const deleteArrival = async (id) => {
-  await productStore.deleteNewArrival(id)
+  if (confirm('Delete this new arrival permanently?')) {
+    await productStore.deleteNewArrival(id)
+    showNotification('New Arrival deleted.')
+  }
 }
 
 // --- Orders ---
-const statuses = ['pending', 'confirmed', 'preparing', 'delivered']
+const statuses = ['pending', 'confirmed', 'preparing', 'delivered', 'cancelled']
 const updateStatus = async (id, status) => {
   await orderStore.updateOrderStatus(id, status)
 }
 
-// --- Hero Content ---
-const heroForm = ref({ title: '', subtitle: '', ctaText: '', ctaLink: '', image: '', isVideo: false })
-const initHero = () => { heroForm.value = { ...productStore.heroContent } }
-const handleHeroMedia = async (e) => {
-  const file = e.target.files[0]
-  if (file) {
-    heroForm.value.image = await fileToBase64(file)
-    heroForm.value.isVideo = file.type.startsWith('video/')
+const orderFilters = ref({
+  client: '',
+  product: '',
+  date: '',
+  payment: '',
+  status: ''
+})
+
+const filteredOrders = computed(() => {
+  return orderStore.orders.filter(o => {
+    const matchClient = !orderFilters.value.client || 
+      o.customerInfo.fullName.toLowerCase().includes(orderFilters.value.client.toLowerCase());
+    
+    const matchProduct = !orderFilters.value.product || 
+      o.items.some(item => item.product.name.toLowerCase().includes(orderFilters.value.product.toLowerCase()));
+    
+    const matchDate = !orderFilters.value.date || 
+      new Date(o.date).toLocaleDateString() === new Date(orderFilters.value.date).toLocaleDateString();
+    
+    const matchPayment = !orderFilters.value.payment || 
+      (orderFilters.value.payment === 'preorder' ? o.paymentType === 'preorder' : o.paymentType !== 'preorder');
+    
+    const matchStatus = !orderFilters.value.status || o.status === orderFilters.value.status;
+
+    return matchClient && matchProduct && matchDate && matchPayment && matchStatus;
+  });
+})
+
+const deleteOrder = async (id) => {
+  if (confirm('Permanently delete this order from the system?')) {
+    try {
+      await orderStore.cancelOrder(id);
+      showNotification('Order deleted successfully.');
+    } catch (error) {
+      showNotification('Failed to delete order.', 'error');
+    }
   }
 }
-const saveHero = async () => {
-  await productStore.updateHero(heroForm.value)
-  alert('Hero updated')
-}
+
+// --- autoSaveStatus (used by Categories) ---
+const autoSaveStatus = ref('') // 'saving', 'saved', 'error'
 // --- Notifications ---
 const notification = ref({ show: false, message: '', type: 'success' })
 const showNotification = (msg, type = 'success') => {
@@ -252,21 +375,24 @@ const showNotification = (msg, type = 'success') => {
       <AccessibleButton label="Exit Admin" variant="secondary" @click="router.push('/')" />
     </div>
 
-    <div class="admin-tabs" role="tablist">
+    <div class="admin-tabs" role="tablist" aria-label="Admin Navigation">
       <button 
         v-for="tab in tabs" :key="tab"
+        :id="`tab-${tab}`"
         role="tab"
         :aria-selected="activeTab === tab"
         :class="['tab-btn', { active: activeTab === tab }]"
-        @click="activeTab = tab; if(tab === 'Hero Content') initHero()"
+        @click="activeTab = tab; if(tab === 'Orders') markOrdersAsSeen()"
+        style="position: relative;"
       >
         {{ tab }}
+        <span v-if="tab === 'Orders' && newOrdersCount > 0 && activeTab !== 'Orders'" class="order-badge" aria-label="New Orders">{{ newOrdersCount }}</span>
       </button>
     </div>
 
     <div class="tab-content">
       <!-- DASHBOARD TAB -->
-      <div v-if="activeTab === 'Dashboard'" class="dashboard-panel">
+      <div v-if="activeTab === 'Dashboard'" class="dashboard-panel" role="tabpanel" aria-labelledby="tab-Dashboard">
         <div class="stats-grid">
           <div class="stat-card">
             <h3>Total Revenue</h3>
@@ -318,7 +444,7 @@ const showNotification = (msg, type = 'success') => {
       </div>
 
       <!-- PRODUCTS TAB -->
-      <div v-if="activeTab === 'Products'">
+      <div v-if="activeTab === 'Products'" role="tabpanel" aria-labelledby="tab-Products">
         <div class="panel-header">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <AccessibleButton label="← Back" variant="secondary" @click="activeTab = 'Dashboard'" />
@@ -408,36 +534,91 @@ const showNotification = (msg, type = 'success') => {
           </form>
         </div>
 
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="p in productStore.products" :key="p.id">
-                <td>{{ p.id }}</td>
-                <td><img :src="p.images?.length ? p.images[0] : p.image" class="thumb" alt=""/></td>
-                <td>{{ p.name }}</td>
-                <td>{{ p.category }} - {{ p.subcategory }}</td>
-                <td>{{ p.price.toLocaleString() }}</td>
-                <td>{{ p.stock }}</td>
-                <td class="action-cells">
-                  <button class="action-btn text-primary" @click="editProduct(p)">Edit</button>
-                  <button class="action-btn text-error" @click="deleteProduct(p.id)">Delete</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="!showProductForm" class="product-explorer" style="margin-top: 2rem;">
+          <!-- Level 1: Categories -->
+          <div v-if="!selectedCategoryView">
+            <h3 style="margin-bottom: 1rem;">Categories</h3>
+            <div class="explorer-grid">
+              <div v-for="(subs, cat) in productExplorerData" :key="cat" class="explorer-card" @click="selectedCategoryView = cat; selectedSubcategoryView = null">
+                <h4>{{ cat }}</h4>
+                <p>{{ Object.keys(subs).length }} Subcategories</p>
+                <p style="font-size: 0.8rem; color: var(--color-primary); margin-top: 0.5rem;">
+                  {{ Object.values(subs).reduce((acc, prods) => acc + prods.length, 0) }} Total Products
+                </p>
+              </div>
+            </div>
+            <div v-if="Object.keys(productExplorerData).length === 0" style="padding: 1rem; color: #666;">
+              No categories found. Start by adding some!
+            </div>
+          </div>
+
+          <!-- Level 2: Subcategories -->
+          <div v-else-if="!selectedSubcategoryView">
+            <div class="explorer-header" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; background: var(--color-bg); padding: 0.75rem; border-radius: 6px;">
+              <AccessibleButton label="← Back to Categories" variant="secondary" @click="selectedCategoryView = null" />
+              <h3 style="margin: 0;">{{ selectedCategoryView }} > Subcategories</h3>
+            </div>
+            <div class="explorer-grid">
+              <div v-for="(prods, sub) in productExplorerData[selectedCategoryView]" :key="sub" class="explorer-card" @click="selectedSubcategoryView = sub">
+                <h4>{{ sub }}</h4>
+                <p>{{ prods.length }} Products</p>
+              </div>
+            </div>
+            <div v-if="Object.keys(productExplorerData[selectedCategoryView] || {}).length === 0" style="padding: 1rem; color: #666;">
+              No subcategories found in this category.
+            </div>
+          </div>
+
+          <!-- Level 3: Products -->
+          <div v-else>
+            <div class="explorer-header" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; background: var(--color-bg); padding: 0.75rem; border-radius: 6px;">
+              <AccessibleButton label="← Back to Subcategories" variant="secondary" @click="selectedSubcategoryView = null" />
+              <h3 style="margin: 0; font-size: 1.1rem;">{{ selectedCategoryView }} > {{ selectedSubcategoryView }} > Products</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <caption class="sr-only">Products in {{ selectedCategoryView }} > {{ selectedSubcategoryView }}</caption>
+                <thead>
+                  <tr>
+                    <th>Image</th><th>Name</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="p in productExplorerData[selectedCategoryView]?.[selectedSubcategoryView] || []" :key="p.id">
+                    <td><img :src="p.images?.length ? p.images[0] : p.image" class="thumb" alt=""/></td>
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.price.toLocaleString() }}</td>
+                    <td>{{ p.stock }}</td>
+                    <td>
+                      <span v-if="p.stock > 0 && p.inStore" class="stock-badge in-stock">In-Stock</span>
+                      <span v-else-if="p.stock > 0 && !p.inStore" class="stock-badge pre-order">Pre-order</span>
+                      <span v-else class="stock-badge out-of-stock">Out of Stock (Pre-order)</span>
+                    </td>
+                    <td class="action-cells">
+                      <button class="action-btn text-primary" @click="editProduct(p)">Edit</button>
+                      <button class="action-btn text-error" @click="deleteProduct(p.id)">Delete</button>
+                    </td>
+                  </tr>
+                  <tr v-if="(productExplorerData[selectedCategoryView]?.[selectedSubcategoryView] || []).length === 0">
+                    <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">No products found in this subcategory.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
-       <!-- CATEGORIES TAB -->
-      <div v-if="activeTab === 'Categories'">
-        <div class="panel-header" style="justify-content: flex-start; gap: 1rem;">
-          <AccessibleButton label="← Back" variant="secondary" @click="activeTab = 'Dashboard'" />
-          <h2 style="margin: 0;">Manage Categories</h2>
+      <div v-if="activeTab === 'Categories'" role="tabpanel" aria-labelledby="tab-Categories">
+        <div class="panel-header" style="justify-content: space-between; gap: 1rem;">
+          <div style="display: flex; gap: 1rem; align-items: center;">
+            <AccessibleButton label="← Back" variant="secondary" @click="activeTab = 'Dashboard'" />
+            <h2 style="margin: 0;">Manage Categories</h2>
+          </div>
+          <div v-if="autoSaveStatus" :class="['autosave-bar', autoSaveStatus]">
+            <span v-if="autoSaveStatus === 'saving'" class="spinner"></span>
+            {{ autoSaveStatus === 'saving' ? 'Saving changes...' : (autoSaveStatus === 'saved' ? 'Saved automatically' : 'Save failed') }}
+          </div>
         </div>
 
         <div class="dashboard-split" style="margin-top: 1.5rem;">
@@ -485,7 +666,7 @@ const showNotification = (msg, type = 'success') => {
       </div>
 
       <!-- NEW ARRIVALS TAB -->
-      <div v-if="activeTab === 'New Arrivals'">
+      <div v-if="activeTab === 'New Arrivals'" role="tabpanel" aria-labelledby="tab-New Arrivals">
         <div class="panel-header">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <AccessibleButton label="← Back" variant="secondary" @click="activeTab = 'Dashboard'" />
@@ -495,6 +676,7 @@ const showNotification = (msg, type = 'success') => {
         </div>
 
         <div v-if="showArrivalForm" class="form-card">
+          <h3>{{ editingArrivalId ? 'Edit Arrival' : 'New Arrival' }}</h3>
           <form @submit.prevent="saveArrival" class="grid-form">
             <AccessibleInput id="na-name" label="Product Name" v-model="arrivalForm.name" required />
             <AccessibleInput id="na-url" label="Image URL (Or Upload Below)" v-model="arrivalForm.image" />
@@ -502,7 +684,7 @@ const showNotification = (msg, type = 'success') => {
             <div class="input-group">
                <label>Upload Image</label>
                <input type="file" accept="image/*" @change="handleArrivalImage" />
-               <img v-if="arrivalForm.image && arrivalForm.image.startsWith('data:')" :src="arrivalForm.image" style="height: 60px; margin-top: 10px;" />
+               <img v-if="arrivalForm.image" :src="arrivalForm.image" style="height: 60px; margin-top: 10px; object-fit: cover; border-radius: 4px;" />
             </div>
 
             <div class="input-group">
@@ -520,8 +702,8 @@ const showNotification = (msg, type = 'success') => {
             </div>
 
             <div class="form-actions" style="grid-column: 1 / -1;">
-              <AccessibleButton label="Save" type="submit" />
-              <AccessibleButton label="Cancel" variant="secondary" @click="showArrivalForm = false" type="button" />
+              <AccessibleButton :label="editingArrivalId ? 'Update Arrival' : 'Save'" type="submit" />
+              <AccessibleButton label="Cancel" variant="secondary" @click="resetArrivalForm" type="button" />
             </div>
           </form>
         </div>
@@ -535,35 +717,75 @@ const showNotification = (msg, type = 'success') => {
                         <small>{{ arr.category }} > {{ arr.subcategory }}</small>
                     </div>
                 </div>
-                <button class="action-btn text-error" @click="deleteArrival(arr.id)">Delete</button>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button class="action-btn text-primary" @click="editArrival(arr)">Edit</button>
+                  <button class="action-btn text-error" @click="deleteArrival(arr.id)">Delete</button>
+                </div>
             </li>
             <li v-if="productStore.newArrivals.length === 0">No direct new arrivals specified.</li>
         </ul>
       </div>
 
       <!-- ORDERS TAB -->
-      <div v-if="activeTab === 'Orders'">
+      <div v-if="activeTab === 'Orders'" role="tabpanel" aria-labelledby="tab-Orders">
         <div class="panel-header" style="justify-content: flex-start; gap: 1rem;">
           <AccessibleButton label="← Back" variant="secondary" @click="activeTab = 'Dashboard'" />
           <h2 style="margin: 0;">Manage Orders</h2>
         </div>
+
+        <!-- Order Filters -->
+        <div class="filters-panel" style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+          <input type="text" v-model="orderFilters.client" placeholder="Filter by Client Name" class="custom-select" />
+          <input type="text" v-model="orderFilters.product" placeholder="Filter by Product Name" class="custom-select" />
+          <input type="date" v-model="orderFilters.date" class="custom-select" />
+          <select v-model="orderFilters.payment" class="custom-select">
+            <option value="">All Payments</option>
+            <option value="full">Paid Full</option>
+            <option value="preorder">Paid Half (Pre-order)</option>
+          </select>
+          <select v-model="orderFilters.status" class="custom-select">
+            <option value="">All Statuses</option>
+            <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+
         <div class="table-responsive">
           <table class="data-table">
+            <caption class="sr-only">Recent Orders Detail Table</caption>
             <thead>
               <tr>
-                <th>ID</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th>
+                <th>ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Total (Payment)</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="o in orderStore.orders" :key="o.id">
+              <tr v-for="o in filteredOrders" :key="o.id">
                 <td>{{ o.id }}</td>
                 <td>{{ new Date(o.date).toLocaleDateString() }}</td>
                 <td>{{ o.customerInfo.fullName }}<br/><small>{{ o.customerInfo.whatsappPhone }}</small></td>
-                <td>{{ o.total.toLocaleString() }}</td>
+                <td>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-width: 250px;">
+                    <div v-for="(item, idx) in o.items" :key="idx" style="display: flex; gap: 0.5rem; align-items: center;">
+                      <img :src="item.product.images?.length ? item.product.images[0] : item.product.image" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" alt=""/>
+                      <div style="font-size: 0.8rem; line-height: 1.2;">
+                        <strong>{{ item.product.name }}</strong><br/>
+                        Qty: {{ item.quantity }}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {{ o.total.toLocaleString() }} RWF <br/>
+                  <small style="color: #666; font-weight: 600;">
+                    {{ o.paymentType === 'preorder' ? `Paid Half (${o.depositPaid.toLocaleString()})` : 'Paid Full' }}
+                  </small>
+                </td>
                 <td>
                   <select :value="o.status" @change="updateStatus(o.id, $event.target.value)" class="status-select">
                     <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
                   </select>
+                </td>
+                <td>
+                  <button class="action-btn text-error" @click="deleteOrder(o.id)">Delete</button>
                 </td>
               </tr>
             </tbody>
@@ -571,36 +793,7 @@ const showNotification = (msg, type = 'success') => {
         </div>
       </div>
 
-      <!-- HERO CONTENT TAB -->
-      <div v-if="activeTab === 'Hero Content'" class="form-card">
-        <div class="panel-header" style="justify-content: flex-start; gap: 1rem;">
-          <AccessibleButton label="← Back" variant="secondary" @click="activeTab = 'Dashboard'" />
-          <h2 style="margin: 0;">Edit Homepage Hero Content</h2>
-        </div>
-        <form @submit.prevent="saveHero" class="grid-form">
-          <AccessibleInput id="h-title" label="Headline" v-model="heroForm.title" style="grid-column: 1 / -1;" required />
-          <AccessibleInput id="h-sub" label="Tagline / Subtitle" v-model="heroForm.subtitle" style="grid-column: 1 / -1;" required />
-          <AccessibleInput id="h-ctaText" label="Button Label" v-model="heroForm.ctaText" required />
-          <AccessibleInput id="h-link" label="Button URL" v-model="heroForm.ctaLink" required />
-          
-          <div class="input-group" style="grid-column: 1 / -1;">
-             <label>Background Media (URL or Local Upload)</label>
-             <AccessibleInput id="h-img" label="Media URL" v-model="heroForm.image" />
-             <input type="file" accept="image/*,video/*" @change="handleHeroMedia" style="margin-top: 0.5rem;" />
-             
-             <label class="checkbox-label" style="margin-top: 1rem;">
-                 <input type="checkbox" v-model="heroForm.isVideo" /> Is this media a Video?
-             </label>
 
-             <div v-if="heroForm.image" style="margin-top: 1rem;">
-                 <video v-if="heroForm.isVideo" :src="heroForm.image" controls style="max-height: 200px; display: block;"></video>
-                 <img v-else :src="heroForm.image" alt="Hero Preview" style="max-height: 200px; display: block;" />
-             </div>
-          </div>
-          
-          <AccessibleButton label="Update Content" type="submit" style="grid-column: 1 / -1;" />
-        </form>
-      </div>
 
     </div>
   </div>
@@ -894,9 +1087,112 @@ const showNotification = (msg, type = 'success') => {
 .text-primary { color: var(--color-primary); }
 .text-error { color: var(--color-error); }
 
+.stock-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stock-badge.in-stock { background: #d1fae5; color: #065f46; }
+.stock-badge.pre-order { background: #ede9fe; color: #5b21b6; }
+.stock-badge.out-of-stock { background: #fee2e2; color: #991b1b; }
+
+
 .status-select {
   padding: 0.5rem;
   border-radius: 4px;
   border: 1px solid var(--color-border);
+}
+
+.explorer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.explorer-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.explorer-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+  border-color: var(--color-primary);
+}
+
+.explorer-card h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.explorer-card p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+.autosave-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  background: white;
+  border: 1px solid var(--color-border);
+  transition: all 0.3s ease;
+}
+.autosave-bar.saving { color: #2563eb; border-color: #bfdbfe; font-weight: 500; }
+.autosave-bar.saved { color: #059669; border-color: #a7f3d0; font-weight: 500; }
+.autosave-bar.error { color: #dc2626; border-color: #fecaca; font-weight: 500; }
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(37, 99, 235, 0.2);
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.order-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
 }
 </style>

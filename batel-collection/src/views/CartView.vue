@@ -49,7 +49,7 @@ const proceedToCheckout = () => {
               <div class="quantity-control">
                 <button @click="cartStore.updateQuantity(index, -1)" aria-label="Decrease quantity" class="qty-btn">-</button>
                 <span class="qty" aria-live="polite">{{ item.quantity }}</span>
-                <button @click="cartStore.updateQuantity(index, 1)" aria-label="Increase quantity" class="qty-btn">+</button>
+                <button @click="cartStore.updateQuantity(index, 1)" aria-label="Increase quantity" class="qty-btn" :disabled="item.product.inStore && item.quantity >= item.product.stock">+</button>
               </div>
               
               <button @click="cartStore.removeFromCart(index)" class="remove-btn" aria-label="Remove item">
@@ -65,8 +65,8 @@ const proceedToCheckout = () => {
         </div>
       </div>
 
-      <div class="cart-summary">
-        <h2>Order Summary</h2>
+      <div class="cart-summary" aria-labelledby="summary-title">
+        <h2 id="summary-title">Order Summary</h2>
         <div class="summary-row">
           <span>Subtotal</span>
           <span>{{ cartStore.total.toLocaleString() }} RWF</span>

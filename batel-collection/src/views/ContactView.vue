@@ -14,14 +14,14 @@
         <p>
           BatelCollection Headquarters<br>
           Kigali, Rwanda<br>
-          Bldg 000, KGL
+          KK 000, KGL
         </p>
 
         <h3>Email</h3>
         <p><a href="mailto:support@batelcollection.com">support@batelcollection.com</a></p>
 
         <h3>Phone</h3>
-        <p>+250 123 456 789</p>
+        <p>+250 788 949 399</p>
 
         <h3>Business Hours</h3>
         <p>

@@ -11,10 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb', extended: true }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 const DB_DIR = path.join(__dirname, 'database-store');
+console.log(`Database directory: ${DB_DIR}`);
 
 // Seeding Data
 const defaultProducts = [
@@ -46,7 +47,8 @@ const initDB = () => {
     { name: 'users.json', data: defaultUsers },
     { name: 'orders.json', data: [] },
     { name: 'categories.json', data: defaultCategories },
-    { name: 'hero.json', data: { title: 'Welcome to BatelCollection', subtitle: 'Premium Fashion in Kigali', ctaText: 'Shop Now', ctaLink: '/shop', image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1920&q=80', isVideo: false } }
+    { name: 'newArrivals.json', data: [] },
+    { name: 'hero.json', data: { title: 'Welcome to BatelCollection', subtitle: 'Premium Fashion in Kigali', ctaText: 'Shop Now', ctaLink: '/shop', image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1920&q=80', images: [], isVideo: false } }
   ];
 
   filesToSeed.forEach(file => {
@@ -59,8 +61,34 @@ const initDB = () => {
 
 initDB();
 
-const readDB = (filename) => JSON.parse(fs.readFileSync(path.join(DB_DIR, filename), 'utf8'));
-const writeDB = (filename, data) => fs.writeFileSync(path.join(DB_DIR, filename), JSON.stringify(data, null, 2));
+const readDB = (filename) => {
+  const filePath = path.join(DB_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    if (filename === 'newArrivals.json') return [];
+    if (filename === 'hero.json') return { title: '', subtitle: '', ctaText: '', ctaLink: '', image: '', images: [], isVideo: false };
+    console.warn(`[readDB] Warning: File not found: ${filename}`);
+    throw new Error(`File not found: ${filename}`);
+  }
+  try {
+    const data = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    console.error(`[readDB] Error reading/parsing ${filename}:`, err);
+    throw err;
+  }
+};
+
+const writeDB = (filename, data) => {
+  const filePath = path.join(DB_DIR, filename);
+  try {
+    const content = JSON.stringify(data, null, 2);
+    fs.writeFileSync(filePath, content);
+    console.log(`[writeDB] Successfully updated ${filename} (${content.length} bytes)`);
+  } catch (err) {
+    console.error(`[writeDB] Error writing to ${filename}:`, err);
+    throw err;
+  }
+};
 
 // Generic REST endpoints
 app.get('/api/:collection', (req, res) => {
@@ -74,13 +102,62 @@ app.get('/api/:collection', (req, res) => {
 
 app.post('/api/:collection', (req, res) => {
   try {
-    const data = readDB(`${req.params.collection}.json`);
+    const collection = req.params.collection;
+    console.log(`[DEBUG] POST /api/${collection} received`);
+    const data = readDB(`${collection}.json`);
     const newItem = { id: Date.now(), ...req.body };
+
+    // Special logic for orders to reduce stock
+    if (collection === 'orders') {
+      console.log(`[DEBUG] Processing order to reduce stock...`);
+      const products = readDB('products.json');
+      const orderItems = req.body.items || [];
+      
+      orderItems.forEach(item => {
+        console.log(`[DEBUG] Reducing stock for product ID: ${item.product.id}, quantity: ${item.quantity}`);
+        const productIndex = products.findIndex(p => p.id === Number(item.product.id));
+        if (productIndex !== -1) {
+          const product = products[productIndex];
+          const oldStock = product.stock;
+          product.stock = Math.max(0, product.stock - (item.quantity || 1));
+          console.log(`[DEBUG] Stock reduced from ${oldStock} to ${product.stock}`);
+          
+          if (product.stock <= 0) {
+             console.log(`[DEBUG] Product ${product.id} is now out of store.`);
+             product.inStore = false;
+          }
+        } else {
+          console.log(`[DEBUG] Product ID ${item.product.id} not found in database.`);
+        }
+      });
+      writeDB('products.json', products);
+    }
+
     data.push(newItem);
-    writeDB(`${req.params.collection}.json`, data);
+    writeDB(`${collection}.json`, data);
     res.status(201).json(newItem);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    console.error(`[API] Error in POST /api/${req.params.collection}:`, err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// Used for single objects like hero or categories
+// IMPORTANT: This must be registered BEFORE the generic /api/:collection/:id route
+// because Express matches routes in order and /api/:collection/:id would match first,
+// treating 'single' as the collection and 'categories' as the id.
+app.put('/api/single/:collection', (req, res) => {
+  try {
+    console.log(`[API] PUT /api/single/${req.params.collection} - Received payload size: ${JSON.stringify(req.body).length}`);
+    writeDB(`${req.params.collection}.json`, req.body);
+    res.json(req.body);
+  } catch (err) {
+    console.error(`[API] Error updating single collection ${req.params.collection}:`, err);
+    res.status(500).json({ 
+      error: 'Backend Write Error', 
+      details: err.message,
+      path: req.params.collection
+    });
   }
 });
 
@@ -100,16 +177,6 @@ app.put('/api/:collection/:id', (req, res) => {
   }
 });
 
-// Used for single objects like hero
-app.put('/api/single/:collection', (req, res) => {
-  try {
-    writeDB(`${req.params.collection}.json`, req.body);
-    res.json(req.body);
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 app.delete('/api/:collection/:id', (req, res) => {
   try {
     const data = readDB(`${req.params.collection}.json`);
@@ -121,7 +188,8 @@ app.delete('/api/:collection/:id', (req, res) => {
   }
 });
 
-// Auth endpoint
+const loginAttempts = {};
+
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   const users = readDB('users.json');
@@ -130,14 +198,52 @@ app.post('/api/auth/login', (req, res) => {
   const user = users.find(u => {
     const dbEmail = u.email ? u.email.toLowerCase() : '';
     const dbUser = u.username ? u.username.toLowerCase() : '';
-    return (dbUser === normalizedInput || dbEmail === normalizedInput) && u.password === password;
+    return (dbUser === normalizedInput || dbEmail === normalizedInput);
   });
 
-  if (user) {
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  if (user.isPermanentlyLocked) {
+    return res.status(403).json({ error: 'Account is permanently locked.' });
+  }
+
+  const attemptInfo = loginAttempts[user.id] || { count: 0, lockUntil: null };
+
+  if (attemptInfo.lockUntil && Date.now() < attemptInfo.lockUntil) {
+     const remaining = Math.ceil((attemptInfo.lockUntil - Date.now()) / 60000);
+     return res.status(403).json({ error: `Account locked. Try again in ${remaining} minute(s).` });
+  }
+
+  if (user.password === password) {
+    delete loginAttempts[user.id]; // successful login resets counter
     const { password, ...safeUser } = user;
-    res.json({ token: 'fake-jwt-token-' + user.id, user: safeUser });
+    return res.json({ token: 'fake-jwt-token-' + user.id, user: safeUser });
   } else {
-    res.status(401).json({ error: 'Invalid credentials' });
+    attemptInfo.count += 1;
+    let errorMsg = 'Invalid credentials';
+    let locked = false;
+
+    if (attemptInfo.count === 3) {
+      attemptInfo.lockUntil = Date.now() + 5 * 60 * 1000;
+      errorMsg = 'Warning: Account is locked for 5 minutes due to 3 failed attempts.';
+      locked = true;
+    } else if (attemptInfo.count === 4) {
+      attemptInfo.lockUntil = Date.now() + 10 * 60 * 1000;
+      errorMsg = 'Warning: Account is locked for 10 minutes due to 4 failed attempts.';
+      locked = true;
+    } else if (attemptInfo.count >= 5) {
+      user.isPermanentlyLocked = true;
+      const index = users.findIndex(u => u.id === user.id);
+      users[index] = user;
+      writeDB('users.json', users);
+      errorMsg = 'Account permanently locked due to 5 failed attempts.';
+      locked = true;
+    }
+
+    loginAttempts[user.id] = attemptInfo;
+    return res.status(locked ? 403 : 401).json({ error: errorMsg });
   }
 });
 
@@ -162,6 +268,19 @@ app.post('/api/auth/signup', (req, res) => {
   
   const { password: _p, ...safeUser } = newUser;
   res.status(201).json({ token: 'fake-jwt-token-' + newUser.id, user: safeUser });
+});
+
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('Bad JSON Payload:', err.message);
+    return res.status(400).send({ error: 'Bad JSON Payload', details: err.message });
+  }
+  if (err.type === 'entity.too.large') {
+    console.error('Payload Too Large:', err.message);
+    return res.status(413).send({ error: 'Payload Too Large', details: err.message });
+  }
+  console.error('Unhandled Error:', err);
+  res.status(500).send({ error: 'Internal Server Error', details: err.message });
 });
 
 app.listen(PORT, () => console.log(`Backend running on http://localhost:${PORT}`));

@@ -19,11 +19,11 @@
         <h2>Our Location</h2>
         <p>We are centrally located in the heart of the city:<br>
         <strong>Kigali, Rwanda</strong><br>
-        <strong>Bldg 000, KGL</strong></p>
+        <strong>KK 000, KGL</strong></p>
       </div>
 
       <div class="content-image">
-         <img src="https://images.unsplash.com/photo-1441984904996-e0b6ba687e07?w=800&q=80" alt="BatelCollection Storefront" class="about-img"/>
+         <img src="@/assets/Store_image/front_store.png" alt="BatelCollection Storefront" class="about-img"/>
       </div>
     </div>
   </div>

@@ -4,8 +4,9 @@
   --color-bg: #ffffff;
   --color-text: #333333;
   --color-border: #e2e8f0;
-  --color-error: #dc2626;
-  --color-success: #16a34a;
+  --color-error: darkred;
+  --color-success: #504143;
+  --base-font-size: 16px;
 }
 
 /* Reset and base styles */
@@ -26,7 +27,8 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   line-height: 1.6;
-  font-size: 16px;
+  font-size: var(--base-font-size);
+  transition: font-size 0.3s ease;
 }
 
 /* Accessibility: Focus styles */
@@ -46,6 +48,20 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+.skip-link:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 1rem;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--color-primary);
+  color: white;
+  z-index: 1000;
 }
 
 /* Global Typography */

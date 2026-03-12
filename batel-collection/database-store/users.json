@@ -36,5 +36,25 @@
     "lastName": "m",
     "whatsappPhone": "0788480209",
     "isAdmin": false
+  },
+  {
+    "id": 1772826706565,
+    "username": "mireille@gmail.com",
+    "email": "mireille@gmail.com",
+    "password": "Miba@123",
+    "firstName": "m",
+    "lastName": "kibwa",
+    "whatsappPhone": "078459019",
+    "isAdmin": false
+  },
+  {
+    "id": 1773172652023,
+    "username": "kmnzknn@gmail.com",
+    "email": "kmnzknn@gmail.com",
+    "password": "Jules123@",
+    "firstName": "SANO Kabayiza ",
+    "lastName": "Jules",
+    "whatsappPhone": "0786992184",
+    "isAdmin": false
   }
 ]

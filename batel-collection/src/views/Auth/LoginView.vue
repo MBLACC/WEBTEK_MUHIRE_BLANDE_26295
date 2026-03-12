@@ -68,7 +68,7 @@ const handleLogin = async () => {
     <div class="auth-box">
       <h1 class="page-title">Login</h1>
 
-      <form @submit.prevent="handleLogin" novalidate aria-label="Login form">
+      <form @submit.prevent="handleLogin" novalidate aria-label="Login form" :aria-describedby="errorMsg ? 'login-error' : null">
         <AccessibleInput 
           id="username" 
           label="Email Address" 
@@ -90,7 +90,7 @@ const handleLogin = async () => {
           Password Strength: {{ strengthLabel }}
         </div>
         
-        <div v-if="errorMsg" class="error-alert" role="alert">
+        <div v-if="errorMsg" id="login-error" class="error-alert" role="alert" tabindex="-1" ref="errorAlert">
           {{ errorMsg }}
         </div>
 

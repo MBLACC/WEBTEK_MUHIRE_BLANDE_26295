@@ -86,7 +86,7 @@ const handleSubmit = async () => {
   const payload = { ...form.value, username: form.value.email }
   const res = await authStore.signup(payload)
   if (res.success) {
-    router.push('/account')
+    router.push('/')
   } else {
     errorMsg.value = res.message
   }
@@ -98,7 +98,7 @@ const handleSubmit = async () => {
     <div class="auth-box">
       <h1 class="page-title">Create Account</h1>
 
-      <form @submit.prevent="handleSubmit" novalidate aria-label="Signup form">
+      <form @submit.prevent="handleSubmit" novalidate aria-label="Signup form" :aria-describedby="errorMsg ? 'signup-error' : null">
         <AccessibleInput id="firstName" v-model="form.firstName" label="First Name" required />
         <AccessibleInput id="lastName" v-model="form.lastName" label="Last Name" required />
         <AccessibleInput id="email" v-model="form.email" label="Email Address" type="email" placeholder="username@gmail.com" :error="emailError" :success="hasEmailInput && isEmailValid" required />
@@ -118,7 +118,7 @@ const handleSubmit = async () => {
 
         <AccessibleInput id="confirm" v-model="form.confirm" label="Confirm Password" type="password" placeholder="......." :error="confirmError" :success="isPasswordMatch" required />
 
-        <div v-if="errorMsg" class="error-alert" role="alert">
+        <div v-if="errorMsg" id="signup-error" class="error-alert" role="alert" tabindex="-1">
           {{ errorMsg }}
         </div>
 

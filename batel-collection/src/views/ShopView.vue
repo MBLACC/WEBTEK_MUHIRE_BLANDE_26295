@@ -2,10 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/useProductStore'
+import { useCartStore } from '@/stores/useCartStore'
 import { RouterLink } from 'vue-router'
 import AccessibleInput from '@/components/AccessibleInput.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
 const productStore = useProductStore()
+const cartStore = useCartStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -13,6 +16,7 @@ const searchQuery = ref('')
 const selectedCategory = ref(route.query.category || 'All')
 const selectedSubcategory = ref(route.query.subcategory || 'All')
 const inStoreOnly = ref(route.query.inStore === 'true')
+const isLoading = ref(true)
 
 const categories = computed(() => ['All', ...Object.keys(productStore.categories)])
 
@@ -25,16 +29,22 @@ const subcategoriesMap = computed(() => {
 })
 
 onMounted(async () => {
-  const promises = []
-  if (productStore.products.length === 0) promises.push(productStore.fetchProducts())
-  if (Object.keys(productStore.categories).length === 0) promises.push(productStore.fetchCategories())
-  
-  await Promise.all(promises)
+  try {
+    const promises = []
+    if (productStore.products.length === 0) promises.push(productStore.fetchProducts())
+    if (Object.keys(productStore.categories).length === 0) promises.push(productStore.fetchCategories())
+    
+    await Promise.all(promises)
+  } catch (err) {
+    console.error('Failed to load shop data', err)
+  } finally {
+    isLoading.value = false
+  }
 })
 
 const filteredProducts = computed(() => {
   return productStore.products.filter(p => {
-    if (p.stock <= 0) return false
+    // Removed stock <= 0 check — out-of-stock items show as pre-order (issue 5 & 6)
     if (inStoreOnly.value && !p.inStore) return false
     if (selectedCategory.value !== 'All' && p.category !== selectedCategory.value) return false
     if (selectedSubcategory.value !== 'All' && p.subcategory !== selectedSubcategory.value) return false
@@ -134,27 +144,34 @@ const toggleInStore = () => {
           Showing {{ filteredProducts.length }} results
         </p>
 
-        <div v-if="filteredProducts.length === 0" class="empty-state">
+        <LoadingSpinner v-if="isLoading" message="Fetching products..." />
+
+        <div v-else-if="filteredProducts.length === 0" class="empty-state">
           No products matched your filters.
         </div>
 
         <div v-else class="product-grid">
-          <RouterLink 
+          <article 
             v-for="product in filteredProducts" 
             :key="product.id" 
-            :to="`/product/${product.id}`"
             class="product-card"
-            :aria-label="`View details for ${product.name}`"
           >
-            <div class="img-wrapper">
-              <img :src="product.image" :alt="product.name" loading="lazy" />
+            <RouterLink :to="`/product/${product.id}`" class="product-card-link" :aria-label="`View details for ${product.name}`">
+              <div class="img-wrapper">
+                <img :src="product.images?.length ? product.images[0] : product.image" :alt="product.name" loading="lazy" />
+                <span v-if="product.stock <= 0" class="preorder-overlay-badge">Pre-order</span>
+              </div>
+              <div class="product-info">
+                <h3>{{ product.name }}</h3>
+                <p class="price">{{ product.price.toLocaleString() }} RWF</p>
+                <span v-if="!product.inStore && product.stock > 0" class="badge">Pre-order</span>
+                <span v-if="product.stock <= 0" class="preorder-badge">Available for Pre-order</span>
+              </div>
+            </RouterLink>
+            <div class="card-actions">
+              <RouterLink :to="`/product/${product.id}`" class="view-btn">View Details</RouterLink>
             </div>
-            <div class="product-info">
-              <h3>{{ product.name }}</h3>
-              <p class="price">{{ product.price.toLocaleString() }} RWF</p>
-              <span v-if="!product.inStore" class="badge">Pre-order</span>
-            </div>
-          </RouterLink>
+          </article>
         </div>
       </main>
     </div>
@@ -263,14 +280,6 @@ const toggleInStore = () => {
   gap: 1.5rem;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  background: #f9f9f9;
-  border-radius: 8px;
-  color: #666;
-}
-
 .product-card {
   color: var(--color-text);
   text-decoration: none;
@@ -280,27 +289,61 @@ const toggleInStore = () => {
   background: white;
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
-.product-card:hover, .product-card:focus-visible {
+.product-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  flex: 1;
+}
+
+.product-card:hover, .product-card:focus-within {
   transform: translateY(-5px);
   box-shadow: 0 10px 15px rgba(0,0,0,0.1);
 }
 
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+  color: #666;
+}
+
 .img-wrapper {
-  aspect-ratio: 3/4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
+  background: #f0f0f0;
+  position: relative;
+}
+
+.preorder-overlay-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  z-index: 1;
 }
 
 .img-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
   transition: transform 0.5s ease;
 }
 
-.product-card:hover .img-wrapper img, .product-card:focus-visible .img-wrapper img {
+.product-card:hover .img-wrapper img,
+.product-card:focus-within .img-wrapper img {
   transform: scale(1.05);
 }
 
@@ -328,5 +371,41 @@ const toggleInStore = () => {
   font-size: 0.75rem;
   border-radius: 4px;
   margin-top: 0.5rem;
+}
+
+.preorder-badge {
+  display: inline-block;
+  background: #7c3aed;
+  color: white;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.card-actions {
+  padding: 0 1rem 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.view-btn {
+  flex: 1;
+  text-align: center;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.view-btn:hover {
+  opacity: 0.85;
 }
 </style>
