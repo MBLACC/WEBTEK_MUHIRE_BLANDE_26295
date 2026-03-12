@@ -2,7 +2,6 @@
   <div class="auth-page container section-spacing">
     <div class="auth-box">
       <h1 class="page-title">Forgot Password</h1>
-      <p style="text-align:center; margin-bottom: 1.5rem; color:#666;">Mocked flow: Enter email, get 6-digit code.</p>
       
       <div v-if="!submitted">
          <form @submit.prevent="submitted = true">

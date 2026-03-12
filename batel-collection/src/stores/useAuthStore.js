@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
 import { ref } from 'vue'
-
-const API_URL = 'http://localhost:3001/api'
+import { storageService } from '../services/storageService'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(JSON.parse(localStorage.getItem('user')) || null)
@@ -10,14 +8,31 @@ export const useAuthStore = defineStore('auth', () => {
 
   const login = async (username, password) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, { username, password })
-      user.value = response.data.user
-      token.value = response.data.token
+      const users = storageService.getAll('users');
+      const normalizedInput = username ? username.toLowerCase() : '';
+      
+      const foundUser = users.find(u => {
+        const dbEmail = u.email ? u.email.toLowerCase() : '';
+        const dbUser = u.username ? u.username.toLowerCase() : '';
+        return (dbUser === normalizedInput || dbEmail === normalizedInput);
+      });
+
+      if (!foundUser || foundUser.password !== password) {
+        return { success: false, message: 'Invalid credentials' }
+      }
+
+      if (foundUser.isPermanentlyLocked) {
+        return { success: false, message: 'Account is permanently locked.' }
+      }
+
+      const { password: _, ...safeUser } = foundUser;
+      user.value = safeUser
+      token.value = 'fake-jwt-token-' + foundUser.id
       localStorage.setItem('user', JSON.stringify(user.value))
       localStorage.setItem('token', token.value)
       return { success: true }
     } catch (error) {
-      return { success: false, message: error.response?.data?.error || 'Login failed' }
+      return { success: false, message: 'Login failed' }
     }
   }
 
@@ -30,14 +45,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   const signup = async (userData) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/signup`, userData)
-      user.value = response.data.user
-      token.value = response.data.token
+      const users = storageService.getAll('users');
+      if (users.find(u => u.username === userData.username || u.email === userData.email)) {
+        return { success: false, message: 'Username or email already exists' }
+      }
+      
+      const newUser = storageService.add('users', { ...userData, isAdmin: false });
+      const { password: _, ...safeUser } = newUser;
+      
+      user.value = safeUser
+      token.value = 'fake-jwt-token-' + newUser.id
       localStorage.setItem('user', JSON.stringify(user.value))
       localStorage.setItem('token', token.value)
       return { success: true }
     } catch (error) {
-      return { success: false, message: error.response?.data?.error || 'Signup failed' }
+      return { success: false, message: 'Signup failed' }
     }
   }
 

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/useCartStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useOrderStore } from '@/stores/useOrderStore'
+import { useProductStore } from '@/stores/useProductStore'
 import AccessibleInput from '@/components/AccessibleInput.vue'
 import AccessibleButton from '@/components/AccessibleButton.vue'
 
@@ -11,6 +12,7 @@ const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const orderStore = useOrderStore()
+const productStore = useProductStore()
 
 if (cartStore.items.length === 0) {
   router.push('/shop')
@@ -34,7 +36,23 @@ const transportFee = computed(() => {
 })
 
 const finalTotal = computed(() => cartStore.total + transportFee.value)
-const depositAmount = computed(() => form.value.paymentType === 'preorder' ? finalTotal.value / 2 : finalTotal.value)
+const inStockTotal = computed(() => {
+  return cartStore.items
+    .filter(i => i.product.inStore)
+    .reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+})
+const preorderTotal = computed(() => {
+  return cartStore.items
+    .filter(i => !i.product.inStore)
+    .reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+})
+
+const depositAmount = computed(() => {
+  if (form.value.paymentType === 'preorder') {
+    return inStockTotal.value + (preorderTotal.value / 2) + transportFee.value
+  }
+  return finalTotal.value
+})
 
 const hasPreorderItems = computed(() => cartStore.items.some(i => !i.product.inStore))
 
@@ -56,7 +74,7 @@ const placeOrder = async () => {
   const orderDetails = {
     userId: authStore.user?.id || 'guest',
     customerInfo: { ...form.value },
-    items: cartStore.items,
+    items: cartStore.items.map(i => ({ ...i })), // snapshot of cart at time of order
     subtotal: cartStore.total,
     transportFee: transportFee.value,
     total: finalTotal.value,
@@ -64,9 +82,16 @@ const placeOrder = async () => {
     paymentType: form.value.paymentType
   }
 
-  await orderStore.createOrder(orderDetails)
-  cartStore.clearCart()
-  router.push('/account')
+  try {
+    await orderStore.createOrder(orderDetails)
+    // Re-fetch products so stock levels update immediately on client & admin pages
+    await productStore.fetchProducts()
+    cartStore.clearCart()
+    router.push('/account')
+  } catch (err) {
+    console.error('Order placement failed:', err)
+    alert('There was an error placing your order. Please try again.')
+  }
 }
 </script>
 
@@ -107,21 +132,32 @@ const placeOrder = async () => {
 
           <fieldset>
             <legend class="section-heading">Payment Information</legend>
-            <div class="payment-options">
-              <label class="radio-label">
-                <input type="radio" value="full" v-model="form.paymentType" />
-                <div>
-                  <strong>Full Payment</strong>
-                  <p>Pay 100% now ({{ finalTotal.toLocaleString() }} RWF)</p>
-                </div>
-              </label>
-              <label class="radio-label" v-if="hasPreorderItems">
-                <input type="radio" value="preorder" v-model="form.paymentType" />
-                <div>
-                  <strong>Pre-Order (50%)</strong>
-                  <p>Pay 50% now ({{ depositAmount.toLocaleString() }} RWF). Remaining 50% due within 14 days.</p>
-                </div>
-              </label>
+            <div v-if="inStockTotal > 0" class="policy-box" style="margin-bottom: 1rem;">
+               <strong>In-Stock Items:</strong> {{ inStockTotal.toLocaleString() }} RWF 
+               <br/><small>(Requires full payment now)</small>
+            </div>
+            
+            <div v-if="hasPreorderItems">
+              <strong style="display: block; margin-bottom: 0.5rem;">Pre-Order Items ({{ preorderTotal.toLocaleString() }} RWF)</strong>
+              <div class="payment-options">
+                <label class="radio-label">
+                  <input type="radio" value="full" v-model="form.paymentType" />
+                  <div>
+                    <strong>Pay Pre-Order in Full</strong>
+                    <p>Pay 100% now ({{ preorderTotal.toLocaleString() }} RWF)</p>
+                  </div>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" value="preorder" v-model="form.paymentType" />
+                  <div>
+                    <strong>Pay Half Now, Half on Arrival</strong>
+                    <p>Pay 50% now ({{ (preorderTotal / 2).toLocaleString() }} RWF). Remaining 50% due later.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div v-else class="policy-box">
+               <strong>All items are in-stock and will be paid in full today.</strong>
             </div>
           </fieldset>
 
@@ -149,10 +185,14 @@ const placeOrder = async () => {
             <span>Transport ({{ form.city === 'Kigali' ? 'Kigali' : 'Countryside' }})</span>
             <span>{{ transportFee > 0 ? transportFee.toLocaleString() : 'TBD' }} RWF</span>
           </div>
-          <div class="row total-row"><span>Total</span><span>{{ finalTotal.toLocaleString() }} RWF</span></div>
-          <div class="row due-row" v-if="form.paymentType === 'preorder'">
-            <span>Due Now (50%)</span>
+          <div class="row total-row"><span>Order Total</span><span>{{ finalTotal.toLocaleString() }} RWF</span></div>
+          <div class="row due-row">
+            <span>Amount Due Today</span>
             <span>{{ depositAmount.toLocaleString() }} RWF</span>
+          </div>
+          <div class="row" v-if="form.paymentType === 'preorder' && hasPreorderItems">
+            <span style="color: #666; font-size: 0.85rem;">Balance due on arrival:</span>
+            <span style="color: #666; font-size: 0.85rem;">{{ (preorderTotal / 2).toLocaleString() }} RWF</span>
           </div>
         </div>
       </div>
@@ -163,6 +203,10 @@ const placeOrder = async () => {
 <style scoped>
 .page-title {
   margin-bottom: 2rem;
+}
+
+.checkout-page {
+  padding-bottom: 6rem; /* Add space above footer */
 }
 
 .checkout-layout {

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useOrderStore } from '@/stores/useOrderStore'
@@ -18,8 +18,29 @@ onMounted(() => {
 })
 
 const myOrders = computed(() => {
-  return orderStore.orders.filter(o => o.userId === authStore.user?.id)
+  return orderStore.orders.filter(o => o.userId === authStore.user?.id).sort((a,b) => new Date(b.date) - new Date(a.date))
 })
+
+const canCancel = (order) => {
+  if (order.status !== 'pending') return false;
+  const orderDate = new Date(order.date);
+  const now = new Date();
+  const diffHours = (now - orderDate) / (1000 * 60 * 60);
+  return diffHours <= 12;
+}
+
+const notification = ref({ show: false, message: '', type: 'success' })
+const showNotification = (msg, type = 'success') => {
+  notification.value = { show: true, message: msg, type }
+  setTimeout(() => notification.value.show = false, 3000)
+}
+
+const cancelOrder = async (orderId) => {
+  if (confirm('Are you sure you want to cancel this order?')) {
+    await orderStore.cancelOrder(orderId);
+    showNotification('Order successfully cancelled and removed from the system.');
+  }
+}
 
 const logout = () => {
   authStore.logout()
@@ -28,6 +49,9 @@ const logout = () => {
 </script>
 
 <template>
+  <div v-if="notification.show" class="notification-toast" :class="notification.type" role="alert">
+    {{ notification.message }}
+  </div>
   <div class="account-page container section-spacing">
     <div class="account-header">
       <h1 class="page-title">My Account</h1>
@@ -53,15 +77,24 @@ const logout = () => {
           <div v-for="order in myOrders" :key="order.id" class="order-card">
             <div class="order-header">
               <h3>Order #{{ order.id }}</h3>
-              <span :class="['status-badge', order.status]">{{ order.status }}</span>
+              <div class="header-actions">
+                <span :class="['status-badge', order.status]">{{ order.status }}</span>
+                <button v-if="canCancel(order)" class="cancel-btn" @click="cancelOrder(order.id)">Cancel Order</button>
+              </div>
             </div>
-            <p class="order-date">Placed: {{ new Date(order.date).toLocaleDateString() }}</p>
+            <p class="order-date">Placed: {{ new Date(order.date).toLocaleString() }}</p>
             <p class="order-total">Total: {{ order.total.toLocaleString() }} RWF</p>
-            <p v-if="order.paymentType === 'preorder'" class="order-total">Paid: {{ order.depositPaid.toLocaleString() }} / {{ order.total.toLocaleString() }} (50% Pre-order)</p>
+            <p class="order-payment">Payment: {{ order.paymentType === 'preorder' ? 'Half (Pre-order Deposit)' : 'Full' }}</p>
+            <p v-if="order.paymentType === 'preorder'" class="order-total">Paid: {{ order.depositPaid.toLocaleString() }} / {{ order.total.toLocaleString() }}</p>
             <div class="order-items">
-              <span v-for="(item, idx) in order.items" :key="idx" class="order-item-chip">
-                {{ item.quantity }}x {{ item.product.name }}
-              </span>
+              <div v-for="(item, idx) in order.items" :key="idx" class="order-item-detail">
+                <img :src="item.product.images?.length ? item.product.images[0] : item.product.image" :alt="item.product.name" class="item-img" />
+                <div class="item-info">
+                  <p class="item-name">{{ item.product.name }}</p>
+                  <p class="item-meta">Qty: {{ item.quantity }} | Size: {{ item.size || 'N/A' }} | Color: {{ item.color || 'N/A' }}</p>
+                  <p class="item-meta">Paid in {{ order.paymentType === 'preorder' ? 'Half' : 'Full' }}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -71,6 +104,26 @@ const logout = () => {
 </template>
 
 <style scoped>
+.notification-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  z-index: 9999;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  animation: slideIn 0.3s ease-out;
+}
+.notification-toast.success { background-color: #10b981; }
+.notification-toast.error { background-color: #ef4444; }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 .account-header {
   display: flex;
   justify-content: space-between;
@@ -156,8 +209,32 @@ const logout = () => {
 .status-badge.confirmed { background: #bae6fd; color: #0c4a6e; }
 .status-badge.preparing { background: #ddd6fe; color: #4c1d95; }
 .status-badge.delivered { background: #bbf7d0; color: #14532d; }
+.status-badge.cancelled { background: #fee2e2; color: #ef4444; }
 
-.order-date, .order-total {
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.cancel-btn {
+  background: white;
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  background: var(--color-error);
+  color: white;
+}
+
+.order-date, .order-total, .order-payment {
   font-size: 0.875rem;
   color: #555;
   margin-bottom: 0.25rem;
@@ -166,15 +243,40 @@ const logout = () => {
 .order-items {
   margin-top: 1rem;
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 1rem;
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
 }
 
-.order-item-chip {
-  background: var(--color-bg);
+.order-item-detail {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.item-img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
   border: 1px solid var(--color-border);
-  padding: 0.25rem 0.5rem;
-  border-radius: 99px;
-  font-size: 0.75rem;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.item-name {
+  font-weight: 600;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.item-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
 }
 </style>

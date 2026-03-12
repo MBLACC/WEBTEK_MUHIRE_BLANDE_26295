@@ -28,7 +28,7 @@ import { RouterLink } from 'vue-router'
           <h3>Location</h3>
           <address class="footer-address">
             Kigali, Rwanda<br>
-            Bldg 000, KGL<br>
+            KK 000, KGL<br>
             <a href="mailto:support@batelcollection.com">support@batelcollection.com</a>
           </address>
         </div>

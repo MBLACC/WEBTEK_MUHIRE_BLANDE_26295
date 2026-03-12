@@ -3,21 +3,29 @@ import { onMounted, onUnmounted, computed, ref } from 'vue'
 import { useProductStore } from '@/stores/useProductStore'
 import { RouterLink } from 'vue-router'
 import AccessibleButton from '@/components/AccessibleButton.vue'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
 
 const productStore = useProductStore()
 
 const currentSlide = ref(0)
 let slideInterval = null
+const isLoading = ref(true)
 
 onMounted(async () => {
-  const promises = []
-  if (productStore.products.length === 0) promises.push(productStore.fetchProducts())
-  if (!productStore.heroContent.title) promises.push(productStore.fetchHero())
-  if (Object.keys(productStore.categories).length === 0) promises.push(productStore.fetchCategories())
-  promises.push(productStore.fetchNewArrivals())
+  try {
+    const promises = []
+    if (productStore.products.length === 0) promises.push(productStore.fetchProducts())
+    if (!productStore.heroContent.title) promises.push(productStore.fetchHero())
+    if (Object.keys(productStore.categories).length === 0) promises.push(productStore.fetchCategories())
+    promises.push(productStore.fetchNewArrivals())
 
-  await Promise.all(promises)
-  startSlider()
+    await Promise.all(promises)
+  } catch (err) {
+    console.error('Failed to load home data', err)
+  } finally {
+    isLoading.value = false
+    startSlider()
+  }
 })
 
 onUnmounted(() => {
@@ -36,7 +44,15 @@ const slides = computed(() => {
     }))
   }
   // Fallback to hero
-  return [productStore.heroContent]
+  const hero = productStore.heroContent;
+  if (hero.images && hero.images.length > 0) {
+    return hero.images.map((img) => ({
+      ...hero,
+      image: img,
+      isVideo: false
+    }));
+  }
+  return [hero];
 })
 
 const startSlider = () => {
@@ -76,7 +92,11 @@ const dynamicCategories = computed(() => {
 
 <template>
   <div class="home-page">
-    <!-- Hero Slider Section -->
+    <!-- Loading State -->
+    <LoadingSpinner v-if="isLoading" message="Loading store content..." />
+
+    <div v-else>
+      <!-- Hero Slider Section -->
     <section class="hero-slider" aria-label="Hero content slider">
       <div 
         v-for="(slide, index) in slides" 
@@ -118,21 +138,21 @@ const dynamicCategories = computed(() => {
       <section aria-labelledby="new-arrivals-title">
         <h2 id="new-arrivals-title" class="section-title">Latest Products</h2>
         <div class="product-grid">
-          <RouterLink 
-            v-for="product in newArrivalsList" 
-            :key="product.id" 
-            :to="`/product/${product.id}`"
-            class="product-card"
-            :aria-label="`View details for ${product.name}`"
-          >
-            <div class="img-wrapper">
-               <img :src="product.images?.length ? product.images[0] : product.image" :alt="product.name" loading="lazy" />
-            </div>
-            <div class="product-info">
-              <h3>{{ product.name }}</h3>
-              <p class="price">{{ product.price.toLocaleString() }} RWF</p>
-            </div>
-          </RouterLink>
+          <article class="product-card" v-for="product in newArrivalsList" :key="product.id">
+            <RouterLink 
+              :to="`/product/${product.id}`"
+              class="product-link"
+              :aria-label="`View details for ${product.name}`"
+            >
+              <div class="img-wrapper">
+                 <img :src="product.images?.length ? product.images[0] : product.image" :alt="product.name" loading="lazy" />
+              </div>
+              <div class="product-info">
+                <h3>{{ product.name }}</h3>
+                <p class="price">{{ product.price.toLocaleString() }} RWF</p>
+              </div>
+            </RouterLink>
+          </article>
         </div>
       </section>
 
@@ -140,21 +160,22 @@ const dynamicCategories = computed(() => {
       <section aria-labelledby="categories-title" class="section-spacing">
         <h2 id="categories-title" class="section-title">Shop by Category</h2>
         <div class="category-grid">
-          <RouterLink 
-            v-for="cat in dynamicCategories" 
-            :key="cat.name" 
-            :to="`/shop?category=${cat.name}`"
-            class="category-card"
-            :aria-label="`Shop ${cat.name}`"
-          >
-            <img :src="cat.image" :alt="`${cat.name} category`" loading="lazy" />
-            <div class="category-overlay">
-              <span class="category-name">{{ cat.name }}</span>
-            </div>
-          </RouterLink>
+          <article class="category-card-wrapper" v-for="cat in dynamicCategories" :key="cat.name">
+            <RouterLink 
+              :to="`/shop?category=${cat.name}`"
+              class="category-card"
+              :aria-label="`Shop ${cat.name}`"
+            >
+              <img :src="cat.image" :alt="`${cat.name} category`" loading="lazy" />
+              <div class="category-overlay">
+                <span class="category-name">{{ cat.name }}</span>
+              </div>
+            </RouterLink>
+          </article>
         </div>
       </section>
     </div>
+    </div> <!-- Close Loading v-else condition -->
   </div>
 </template>
 
@@ -279,33 +300,39 @@ const dynamicCategories = computed(() => {
 }
 
 .product-card {
-  color: var(--color-text);
-  text-decoration: none;
   border-radius: 8px;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
   background: white;
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.product-card:hover, .product-card:focus-visible {
+.product-link {
+  color: var(--color-text);
+  text-decoration: none;
+  display: block;
+}
+
+.product-card:hover, .product-card:focus-within {
   transform: translateY(-5px);
   box-shadow: 0 10px 15px rgba(0,0,0,0.1);
 }
 
 .img-wrapper {
-  aspect-ratio: 3/4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
+  background: #f0f0f0;
 }
 
 .img-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
   transition: transform 0.5s ease;
 }
 
-.product-card:hover .img-wrapper img, .product-card:focus-visible .img-wrapper img {
+.product-card:hover .img-wrapper img, .product-card:focus-within .img-wrapper img {
   transform: scale(1.05);
 }
 
