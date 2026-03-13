@@ -56,5 +56,15 @@
     "lastName": "Jules",
     "whatsappPhone": "0786992184",
     "isAdmin": false
+  },
+  {
+    "id": 1773433746235,
+    "username": "testuser@example.com",
+    "email": "testuser@example.com",
+    "password": "Password123!",
+    "firstName": "Test",
+    "lastName": "User",
+    "whatsappPhone": "1234567890",
+    "isAdmin": false
   }
 ]

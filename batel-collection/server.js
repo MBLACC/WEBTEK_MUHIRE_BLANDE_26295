@@ -14,6 +14,114 @@ app.use(cors());
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
+const loginAttempts = {};
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  const users = readDB('users.json');
+  const normalizedInput = username ? username.toLowerCase() : '';
+
+  const user = users.find(u => {
+    const dbEmail = u.email ? u.email.toLowerCase() : '';
+    const dbUser = u.username ? u.username.toLowerCase() : '';
+    return (dbUser === normalizedInput || dbEmail === normalizedInput);
+  });
+
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  if (user.isPermanentlyLocked) {
+    return res.status(403).json({ error: 'Account is permanently locked.' });
+  }
+
+  const attemptInfo = loginAttempts[user.id] || { count: 0, lockUntil: null };
+
+  if (attemptInfo.lockUntil && Date.now() < attemptInfo.lockUntil) {
+     const remaining = Math.ceil((attemptInfo.lockUntil - Date.now()) / 60000);
+     return res.status(403).json({ error: `Account locked. Try again in ${remaining} minute(s).` });
+  }
+
+  if (user.password === password) {
+    delete loginAttempts[user.id]; // successful login resets counter
+    const { password, ...safeUser } = user;
+    return res.json({ token: 'fake-jwt-token-' + user.id, user: safeUser });
+  } else {
+    attemptInfo.count += 1;
+    let errorMsg = 'Invalid credentials';
+    let locked = false;
+
+    if (attemptInfo.count === 3) {
+      attemptInfo.lockUntil = Date.now() + 5 * 60 * 1000;
+      errorMsg = 'Warning: Account is locked for 5 minutes due to 3 failed attempts.';
+      locked = true;
+    } else if (attemptInfo.count === 4) {
+      attemptInfo.lockUntil = Date.now() + 10 * 60 * 1000;
+      errorMsg = 'Warning: Account is locked for 10 minutes due to 4 failed attempts.';
+      locked = true;
+    } else if (attemptInfo.count >= 5) {
+      user.isPermanentlyLocked = true;
+      const index = users.findIndex(u => u.id === user.id);
+      users[index] = user;
+      writeDB('users.json', users);
+      errorMsg = 'Account permanently locked due to 5 failed attempts.';
+      locked = true;
+    }
+
+    loginAttempts[user.id] = attemptInfo;
+    return res.status(locked ? 403 : 401).json({ error: errorMsg });
+  }
+});
+
+app.post('/api/auth/signup', (req, res) => {
+  const { username, email, password, firstName, lastName, whatsappPhone } = req.body;
+  const users = readDB('users.json');
+  if (users.find(u => u.username === username || u.email === email)) {
+    return res.status(400).json({ error: 'Username or email already exists' });
+  }
+  const newUser = {
+    id: Date.now(),
+    username,
+    email,
+    password,
+    firstName,
+    lastName,
+    whatsappPhone,
+    isAdmin: false
+  };
+  users.push(newUser);
+  writeDB('users.json', users);
+  
+  const { password: _p, ...safeUser } = newUser;
+  res.status(201).json({ token: 'fake-jwt-token-' + newUser.id, user: safeUser });
+});
+
+app.post('/api/auth/forgot-password', (req, res) => {
+  const { email } = req.body;
+  const users = readDB('users.json');
+  const user = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+  
+  if (user) {
+    res.json({ success: true, message: 'User found' });
+  } else {
+    res.status(404).json({ error: 'This email is not registered.' });
+  }
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  const { email, password } = req.body;
+  const users = readDB('users.json');
+  const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+  
+  if (userIndex !== -1) {
+    users[userIndex].password = password;
+    writeDB('users.json', users);
+    res.json({ success: true, message: 'Password reset successfully' });
+  } else {
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
 const DB_DIR = path.join(__dirname, 'database-store');
 console.log(`Database directory: ${DB_DIR}`);
 
@@ -188,87 +296,6 @@ app.delete('/api/:collection/:id', (req, res) => {
   }
 });
 
-const loginAttempts = {};
-
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  const users = readDB('users.json');
-  const normalizedInput = username ? username.toLowerCase() : '';
-
-  const user = users.find(u => {
-    const dbEmail = u.email ? u.email.toLowerCase() : '';
-    const dbUser = u.username ? u.username.toLowerCase() : '';
-    return (dbUser === normalizedInput || dbEmail === normalizedInput);
-  });
-
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  if (user.isPermanentlyLocked) {
-    return res.status(403).json({ error: 'Account is permanently locked.' });
-  }
-
-  const attemptInfo = loginAttempts[user.id] || { count: 0, lockUntil: null };
-
-  if (attemptInfo.lockUntil && Date.now() < attemptInfo.lockUntil) {
-     const remaining = Math.ceil((attemptInfo.lockUntil - Date.now()) / 60000);
-     return res.status(403).json({ error: `Account locked. Try again in ${remaining} minute(s).` });
-  }
-
-  if (user.password === password) {
-    delete loginAttempts[user.id]; // successful login resets counter
-    const { password, ...safeUser } = user;
-    return res.json({ token: 'fake-jwt-token-' + user.id, user: safeUser });
-  } else {
-    attemptInfo.count += 1;
-    let errorMsg = 'Invalid credentials';
-    let locked = false;
-
-    if (attemptInfo.count === 3) {
-      attemptInfo.lockUntil = Date.now() + 5 * 60 * 1000;
-      errorMsg = 'Warning: Account is locked for 5 minutes due to 3 failed attempts.';
-      locked = true;
-    } else if (attemptInfo.count === 4) {
-      attemptInfo.lockUntil = Date.now() + 10 * 60 * 1000;
-      errorMsg = 'Warning: Account is locked for 10 minutes due to 4 failed attempts.';
-      locked = true;
-    } else if (attemptInfo.count >= 5) {
-      user.isPermanentlyLocked = true;
-      const index = users.findIndex(u => u.id === user.id);
-      users[index] = user;
-      writeDB('users.json', users);
-      errorMsg = 'Account permanently locked due to 5 failed attempts.';
-      locked = true;
-    }
-
-    loginAttempts[user.id] = attemptInfo;
-    return res.status(locked ? 403 : 401).json({ error: errorMsg });
-  }
-});
-
-app.post('/api/auth/signup', (req, res) => {
-  const { username, email, password, firstName, lastName, whatsappPhone } = req.body;
-  const users = readDB('users.json');
-  if (users.find(u => u.username === username || u.email === email)) {
-    return res.status(400).json({ error: 'Username or email already exists' });
-  }
-  const newUser = {
-    id: Date.now(),
-    username,
-    email,
-    password,
-    firstName,
-    lastName,
-    whatsappPhone,
-    isAdmin: false
-  };
-  users.push(newUser);
-  writeDB('users.json', users);
-  
-  const { password: _p, ...safeUser } = newUser;
-  res.status(201).json({ token: 'fake-jwt-token-' + newUser.id, user: safeUser });
-});
 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
