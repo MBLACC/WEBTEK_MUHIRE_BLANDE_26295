@@ -9,15 +9,6 @@
     "lastName": "Admin"
   },
   {
-    "id": 2,
-    "username": "client",
-    "password": "123",
-    "isAdmin": false,
-    "email": "client@example.com",
-    "firstName": "Client",
-    "lastName": "User"
-  },
-  {
     "id": 1772216537974,
     "username": "muhirebrian388@gmail.com",
     "email": "muhirebrian388@gmail.com",
@@ -38,16 +29,6 @@
     "isAdmin": false
   },
   {
-    "id": 1772826706565,
-    "username": "mireille@gmail.com",
-    "email": "mireille@gmail.com",
-    "password": "Miba@123",
-    "firstName": "m",
-    "lastName": "kibwa",
-    "whatsappPhone": "078459019",
-    "isAdmin": false
-  },
-  {
     "id": 1773172652023,
     "username": "kmnzknn@gmail.com",
     "email": "kmnzknn@gmail.com",
@@ -55,16 +36,6 @@
     "firstName": "SANO Kabayiza ",
     "lastName": "Jules",
     "whatsappPhone": "0786992184",
-    "isAdmin": false
-  },
-  {
-    "id": 1773433746235,
-    "username": "testuser@example.com",
-    "email": "testuser@example.com",
-    "password": "Password123!",
-    "firstName": "Test",
-    "lastName": "User",
-    "whatsappPhone": "1234567890",
     "isAdmin": false
   }
 ]

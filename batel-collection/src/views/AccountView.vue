@@ -42,9 +42,30 @@ const cancelOrder = async (orderId) => {
   }
 }
 
+const showDeleteModal = ref(false)
+
 const logout = () => {
   authStore.logout()
   router.push('/login')
+}
+
+const promptDeleteAccount = () => {
+  showDeleteModal.value = true
+}
+
+const cancelDeleteAccount = () => {
+  showDeleteModal.value = false
+}
+
+const confirmDeleteAccount = async () => {
+  showDeleteModal.value = false
+  const userId = authStore.user.id;
+  const result = await authStore.deleteAccount(userId);
+  if (result.success) {
+    router.push('/login?deleted=true');
+  } else {
+    showNotification(result.message || 'Failed to delete account', 'error');
+  }
 }
 </script>
 
@@ -58,6 +79,19 @@ const logout = () => {
       <AccessibleButton label="Logout" variant="secondary" @click="logout" />
     </div>
 
+    <!-- Custom Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Delete Account</h3>
+        <p>Are you sure you want to permanently delete your account? This action cannot be undone and you will lose all access to your order history.</p>
+        <div class="modal-actions">
+          <AccessibleButton label="Cancel" variant="secondary" @click="cancelDeleteAccount" />
+          <button class="modal-delete-btn" @click="confirmDeleteAccount">Yes, Delete My Account</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Details -->
     <div v-if="authStore.user" class="account-details">
       <section class="profile-section">
         <h2>Profile</h2>
@@ -65,6 +99,9 @@ const logout = () => {
           <p><strong>Name:</strong> {{ authStore.user.firstName }} {{ authStore.user.lastName }}</p>
           <p><strong>Email:</strong> {{ authStore.user.email }}</p>
           <p><strong>Username:</strong> {{ authStore.user.username }}</p>
+          <div class="profile-actions">
+            <button class="delete-account-btn" @click="promptDeleteAccount">Delete Account</button>
+          </div>
         </div>
       </section>
 
@@ -124,6 +161,64 @@ const logout = () => {
   to { transform: translateX(0); opacity: 1; }
 }
 
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--color-error);
+  font-size: 1.25rem;
+}
+
+.modal-content p {
+  color: #4b5563;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.modal-delete-btn {
+  background-color: var(--color-error);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.modal-delete-btn:hover {
+  background-color: #b91c1c;
+}
+
 .account-header {
   display: flex;
   justify-content: space-between;
@@ -163,6 +258,29 @@ const logout = () => {
 
 .profile-card p {
   margin-bottom: 0.5rem;
+}
+
+.profile-actions {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.delete-account-btn {
+  background-color: var(--color-error);
+  color: white;
+  border: 1px solid var(--color-error);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.delete-account-btn:hover {
+  background-color: #b91c1c; /* darker red */
+  border-color: #b91c1c;
 }
 
 .empty-orders {

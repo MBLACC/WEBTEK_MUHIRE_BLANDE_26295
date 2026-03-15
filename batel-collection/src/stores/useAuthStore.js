@@ -41,5 +41,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, token, login, logout, signup }
+  const deleteAccount = async (userId) => {
+    try {
+      await axios.delete(`${API_URL}/users/${userId}`)
+      logout() // Clears local storage and state upon successful deletion
+      return { success: true }
+    } catch (error) {
+      console.error('Delete account error:', error)
+      return { success: false, message: error.response?.data?.error || 'Failed to delete account' }
+    }
+  }
+
+  return { user, token, login, logout, signup, deleteAccount }
 })
