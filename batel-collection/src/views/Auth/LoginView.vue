@@ -12,6 +12,11 @@ const route = useRoute()
 const username = ref('')
 const password = ref('')
 const errorMsg = ref('')
+const successMsg = ref('')
+
+if (route.query.deleted) {
+  successMsg.value = 'Account permanently deleted. The action was successfully performed.'
+}
 
 const hasEmailInput = computed(() => username.value.length > 0)
 const isEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.value))
@@ -93,6 +98,9 @@ const handleLogin = async () => {
         <div v-if="errorMsg" id="login-error" class="error-alert" role="alert" tabindex="-1" ref="errorAlert">
           {{ errorMsg }}
         </div>
+        <div v-if="successMsg" id="login-success" class="success-alert" role="alert" tabindex="-1">
+          {{ successMsg }}
+        </div>
 
         <AccessibleButton type="submit" label="Login" class="full-width" :disabled="!isEmailValid || passwordStrength !== 'green'" />
       </form>
@@ -148,6 +156,17 @@ const handleLogin = async () => {
   margin-bottom: 1rem;
   font-size: 0.875rem;
   text-align: center;
+}
+
+.success-alert {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  text-align: center;
+  border: 1px solid #34d399;
 }
 
 .strength-meter {
