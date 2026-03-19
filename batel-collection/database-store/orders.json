@@ -95,7 +95,7 @@
     "total": 76500,
     "depositPaid": 54000,
     "paymentType": "preorder",
-    "status": "confirmed",
+    "status": "pending",
     "date": "2026-03-10T19:21:02.753Z"
   },
   {
@@ -200,7 +200,7 @@
     "total": 76500,
     "depositPaid": 61500,
     "paymentType": "preorder",
-    "status": "confirmed",
+    "status": "pending",
     "date": "2026-03-10T19:25:33.901Z"
   },
   {
@@ -249,7 +249,7 @@
     "total": 26500,
     "depositPaid": 26500,
     "paymentType": "full",
-    "status": "confirmed",
+    "status": "pending",
     "date": "2026-03-10T20:02:58.322Z"
   },
   {
