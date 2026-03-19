@@ -1,7 +1,7 @@
 <template>
   <div class="loading-container" role="status" aria-live="polite" aria-busy="true">
     <div class="spinner"></div>
-    <span class="sr-only">{{ message || 'Loading content, please wait...' }}</span>
+    <p class="loading-text">{{ message || 'Loading content, please wait...' }}</p>
   </div>
 </template>
 
@@ -17,10 +17,18 @@ defineProps({
 <style scoped>
 .loading-container {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   padding: 2rem;
   min-height: 100px;
+  gap: 1rem;
+}
+
+.loading-text {
+  color: var(--color-primary);
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .spinner {
