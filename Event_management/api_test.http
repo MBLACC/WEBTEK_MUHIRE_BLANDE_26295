@@ -1,0 +1,31 @@
+
+###
+GET http://localhost:8080/api/events
+
+###
+POST http://localhost:8080/api/events
+Content-Type: application/json
+
+{
+  "eventName": "Tech Talk 2026",
+  "title": "AI & Future of Technology",
+  "location": "Main Hall",
+  "date": "2026-05-15",
+  "availableSeats": 100
+}
+
+
+###
+GET http://localhost:8080/api/students
+
+###
+POST http://localhost:8080/api/students
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "studentId": 2026001,
+  "eventId": 1
+}
+
+###
